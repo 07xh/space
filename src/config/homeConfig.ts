@@ -3,7 +3,7 @@ import type { HomeConfig } from "../types/config";
 export const homeConfig: HomeConfig = {
 	// 资料卡横幅图（导航 Logo 资料卡第一层）
 	// 留空则回退为「站长头像模糊放大」当背景
-	avatarBanner: "/project-media/dorm-os-tablet.webp",
+	avatarBanner: "/assets/images/avatar-banner.webp",
 
 	// 名字
 	name: "小慌",
@@ -56,12 +56,12 @@ export const homeConfig: HomeConfig = {
 		// author 填了就在图片右上角显示作者小标牌，留空不显示
 		photo: {
 			main: {
-				image: "/project-media/dorm-os-home.webp",
-				author: "小慌 · 校序",
+				image: "/assets/images/home/home.avif",
+				author: "by 冰冰坚老师",
 			},
 			overlay: {
-				image: "/project-media/draftai-projection.webp",
-				author: "小慌 · 绘序",
+				image: "/assets/images/home/home2.avif",
+				author: "by 冰冰坚老师",
 			},
 			intro: {
 				direction: "Python、工程制图、移动设备与个人软件实践",
@@ -91,7 +91,7 @@ export const homeConfig: HomeConfig = {
 	homeBlinds: {
 		enabled: true,
 		reveal: {
-			backgroundImage: "/project-media/dorm-os-tablet.webp",
+			backgroundImage: "/assets/images/home-blinds/act1/1.webp",
 			// 长条横移揭示的入场标题：标题单行显示（版式按 4 字排），
 			// 祝福语单行显示（版式按 5 字排），可自由增减条数
 			headline: {
@@ -177,35 +177,35 @@ export const homeConfig: HomeConfig = {
 				{
 					title: "校序",
 					description: "记录校序的开发与功能迭代。",
-					image: "/project-media/dorm-os-home.webp",
+					image: "/assets/images/home-blinds/act2/1.webp",
 					alt: "第二幕插画",
 					date: "2026 / 06 / 10",
 				},
 				{
 					title: "绘序",
 					description: "人往学海拾新，倦意悄悄落了窗，小屋静候，蒙上薄尘。",
-					image: "/project-media/draftai-projection.webp",
+					image: "/assets/images/home-blinds/act2/2.webp",
 					alt: "第三幕插画",
 					date: "2026 / 06 / 21",
 				},
 				{
 					title: "开发记录",
 					description: "拂去薄尘，重燃灯火，一砖一瓦再把小屋细细打磨。",
-					image: "/project-media/dorm-os-tablet.webp",
+					image: "/assets/images/home-blinds/act2/3.webp",
 					alt: "第四幕插画",
 					date: "2026 / 08 / 18",
 				},
 				{
 					title: "继续完善",
 					description: "笔墨暂歇，来日方长；下一程山水，且歌且行。",
-					image: "/brand/07xh-ship.svg",
+					image: "/assets/images/home-blinds/act2/4.webp",
 					alt: "第五幕插画",
 					date: "2026 / 09 / 01",
 				},
 			],
 			standImages: [
-				"/brand/07xh-ship.svg",
-				"/brand/07xh-ship.svg",
+				"/assets/images/home-blinds/act2-doll/1.gif",
+				"/assets/images/home-blinds/act2-doll/2.gif",
 			],
 		},
 	},
