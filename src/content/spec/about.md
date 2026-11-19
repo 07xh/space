@@ -6,5 +6,6 @@
 
 - [查看项目](/projects/)
 - [阅读文章](/posts/)
+- [最新动态](/dynamic/)
 - [学习专题](/archive/)
 - [GitHub](https://github.com/07xh)

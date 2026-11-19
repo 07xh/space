@@ -19,3 +19,5 @@ from the repository's software license.
 ## Additional direct module ports
 - `src/components/layout/HomeTicker.astro` + `src/styles/components/home-ticker.css`: adapted from `tianshihao2003/dumplingandcakeblog` (MIT), retaining its native custom-element layout and resize handling.
 - `src/components/layout/HomeCompass.astro` + `src/styles/components/home-compass.css`: adapted from `fqzlr/fqzlr-bk` (MIT), retaining its CSS hover/nav layout; links only to enabled routes.
+
+- `/projects/`: adaptation of the original `MmzMing/my-blog` collections accordion and card markup, now populated by 07xh-owned project Markdown. No new card implementation.
