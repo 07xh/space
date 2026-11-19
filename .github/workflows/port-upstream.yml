@@ -1,4 +1,5 @@
 name: Port original mmzhiku theme source
+# Trigger after the migration script has been committed.
 on:
   push:
     branches: [main]
