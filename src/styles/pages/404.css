@@ -1,0 +1,205 @@
+/* 404 电梯场景 */
+
+html:has(.page-404) #content-wrapper:has(> .page-404) {
+	animation: none;
+}
+
+html:has(.page-404) .site-footer {
+	margin-top: 0;
+}
+
+.page-404 {
+	position: relative;
+	isolation: isolate;
+	width: 100vw;
+	height: 100svh;
+	min-height: 34rem;
+	margin-inline: calc(50% - 50vw);
+	overflow: hidden;
+	background: var(--page-bg);
+	color: var(--deep-text);
+}
+
+.page-404__visual {
+	pointer-events: none;
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	contain: layout paint style;
+}
+
+.page-404__stairs {
+	pointer-events: none;
+	position: absolute;
+	inset: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+.page-404__glyph-layer {
+	pointer-events: none;
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+}
+
+.page-404__glyph {
+	pointer-events: none;
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	transform-origin: 0 0;
+	will-change: transform;
+}
+
+.page-404__glyph-character {
+	display: block;
+	width: max-content;
+	transform: translate(-50%, -50%);
+	font-family: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+	font-size: var(--page-404-glyph-size);
+	font-variation-settings: "wght" 380;
+	font-weight: 380;
+	line-height: 1;
+	letter-spacing: 0;
+	color: transparent;
+	-webkit-text-fill-color: transparent;
+	-webkit-text-stroke: var(--page-404-glyph-stroke, 1.25px) color-mix(in oklab, var(--deep-text) 86%, transparent);
+	paint-order: stroke fill;
+}
+
+.page-404__static-code {
+	pointer-events: none;
+	position: absolute;
+	top: 16%;
+	left: 10%;
+	opacity: 0;
+	transform: rotate(-12deg);
+	font-family: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+	font-size: 7rem;
+	font-variation-settings: "wght" 380;
+	font-weight: 380;
+	line-height: 1;
+	letter-spacing: 0;
+	color: transparent;
+	-webkit-text-fill-color: transparent;
+	-webkit-text-stroke: 1px color-mix(in oklab, var(--deep-text) 72%, transparent);
+}
+
+.page-404__content {
+	position: absolute;
+	top: clamp(5rem, 14vh, 9rem);
+	right: clamp(1.5rem, 8vw, 10rem);
+	z-index: 2;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	width: min(30rem, calc(100vw - 3rem));
+	text-align: left;
+}
+
+.page-404__title {
+	margin: 0;
+	font-family: inherit;
+	font-size: clamp(2.5rem, 5.5vw, 4rem);
+	font-weight: 700;
+	line-height: 1.08;
+	letter-spacing: 0;
+	color: var(--deep-text);
+}
+
+.page-404__desc {
+	max-width: 28rem;
+	margin: 1rem 0 1.75rem;
+	font-size: 1rem;
+	line-height: 1.8;
+	letter-spacing: 0;
+	color: var(--content-meta);
+}
+
+.page-404__links {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 1.5rem;
+}
+
+.page-404__home {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	color: var(--deep-text);
+	font-size: 0.9375rem;
+	font-weight: 700;
+	line-height: 1;
+	letter-spacing: 0;
+	text-decoration: none;
+	transition: opacity 0.2s ease;
+}
+
+.page-404__home-icon {
+	font-size: 1.125rem;
+	transition: transform 0.2s ease;
+}
+
+.page-404__home:hover,
+.page-404__home:focus-visible {
+	opacity: 0.72;
+}
+
+.page-404__home:hover .page-404__home-icon,
+.page-404__home:focus-visible .page-404__home-icon {
+	transform: translateX(-3px);
+}
+
+.page-404__home:focus-visible {
+	outline: 2px solid var(--primary);
+	outline-offset: 3px;
+}
+
+@media (max-width: 768px) {
+	.page-404 {
+		height: 100vh;
+		height: 100lvh;
+		min-height: 32rem;
+	}
+
+	.page-404__static-code {
+		top: 19%;
+		left: 8%;
+		font-size: 4.5rem;
+	}
+
+	.page-404__content {
+		top: 4rem;
+		right: 1.25rem;
+		width: min(22rem, calc(100vw - 2.5rem));
+	}
+
+	.page-404__title {
+		font-size: 2.5rem;
+	}
+
+	.page-404__desc {
+		margin-bottom: 1.5rem;
+		font-size: 0.9375rem;
+	}
+
+	.page-404__links {
+		gap: 1.25rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.page-404__static-code {
+		opacity: 0.38;
+	}
+
+	.page-404__home,
+	.page-404__home-icon {
+		transition: none;
+	}
+}

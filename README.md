@@ -1,37 +1,43 @@
 # 07xh Space
 
-A new Astro 7 + Svelte 5 personal blog. Work in progress; this repository is independent from `07xh/Firefly`.
+**Source-first port of a mature Astro blog**, not a custom UI remake.
 
-## Current direction
+## Base theme
 
-This is a **blog-first experience**, not a single-project fullscreen carousel. The homepage leads with a light personal introduction, then links to recent articles, projects, moments and site sections. Project lists and details have their own routes.
+- Full upstream implementation: https://github.com/MmzMing/my-blog
+- Reference source revision is recorded in the GitHub Actions import run.
+- The original layout, scroll scenes, navigation, mobile UI and reader components
+  are retained intact for a first fidelity test.
+- Original project copyright notices are retained in LICENSE.
 
-## Reused MIT-licensed code
+## Imported content
 
-The first wave imports and adapts existing source from the user's three selected blogs:
+Public Markdown, project metadata and user-owned media are imported from
+https://github.com/07xh/Firefly . The source author's posts are excluded.
+The personal identity, contact, comments, analytics and payment details are
+disabled or replaced with 07xh configuration. Some upstream art assets still
+exist for fidelity testing and must be reviewed/replaced before public launch.
 
-- `MmzMing/my-blog`: `src/utils/home-index-scene-controller.ts` for phase-driven intro interaction.
-- `tianshihao2003/dumplingandcakeblog`: `HomeTicker.astro`, ticker CSS, article math scrollbar utility.
-- `fqzlr/fqzlr-bk`: `home-compass.css` and the navigation structure adapted in `HomeCompass.astro`.
+## Additional design references for the next integration phase
 
-Attribution and copyright notices: [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
+- https://github.com/tianshihao2003/dumplingandcakeblog
+- https://github.com/fqzlr/fqzlr-bk
 
-Only publicly available site components are reused. The original authors' images, identity information, private site configuration and content are not copied.
+The first step ports one entire coherent theme. Do not mix incompatible
+upstream visual frameworks by copying partial styles on top of each other.
 
-## Data and status
+## Important
 
-The site uses real public project descriptions and selected published posts/moments from `07xh/Firefly`; full data and image migration is not complete. The admin backend is intentionally not active.
+- The 0701000.xyz production domain still points to the existing Firefly site.
+- The previous custom 07xh/space front-end source was removed during the port.
+- The old repo history remains accessible, so rollback is possible.
+- No Cloudflare deployment or production write API is enabled in this branch.
 
-## Development
+## Local start
 
-Use Node.js 22 or newer.
+Requires Node 22 and pnpm 9.14.4:
 
-```sh
-npm install
-npm run source-check
-npm run check
-npm run build
-npm run dev
-```
-
-No production-domain switch or Cloudflare deployment is configured yet. Do not delete Firefly or point `0701000.xyz` to this repository before full regression tests and data migration.
+    pnpm install --frozen-lockfile
+    pnpm check
+    pnpm build
+    pnpm dev

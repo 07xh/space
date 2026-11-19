@@ -1,0 +1,32 @@
+---
+import Icon from "@components/common/Icon.astro";
+import NotFoundScene from "@components/pages/NotFoundScene.astro";
+import I18nKey from "@/i18n/i18nKey";
+import { i18n } from "@/i18n/translation";
+import MainGridLayout from "@/layouts/MainGridLayout.astro";
+import { url } from "@/utils/url-utils";
+import "@/styles/pages/404.css";
+---
+
+<MainGridLayout title={i18n(I18nKey.notFound)} description={i18n(I18nKey.notFoundDescription)} hasOwnH1={true}>
+	<meta slot="head" name="robots" content="noindex, nofollow" />
+
+	<section class="page-404" data-not-found-scene>
+		<NotFoundScene />
+
+		<div class="page-404__content">
+			<h1 class="page-404__title">{i18n(I18nKey.notFoundTitle)}</h1>
+			<p class="page-404__desc">{i18n(I18nKey.notFoundDescription)}</p>
+
+			<div class="page-404__links">
+				<a href={url("/")} class="page-404__home">
+					<Icon
+						name="material-symbols:chevron-left-rounded"
+						class="page-404__home-icon"
+					/>
+					{i18n(I18nKey.backToHome)}
+				</a>
+			</div>
+		</div>
+	</section>
+</MainGridLayout>

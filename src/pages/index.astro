@@ -1,69 +1,31 @@
 ---
-import Base from '../layouts/Base.astro';
-import HomeTicker from '../components/layout/HomeTicker.astro';
-import HomeCompass from '../components/HomeCompass.astro';
-import {getPosts,getMoments,getProjects} from '../lib/content';
-const posts=(await getPosts()).slice(0,6);
-const projects=(await getProjects()).filter(p=>!['firefly','example-project'].includes(p.id)).slice(0,5);
-const moments=(await getMoments()).slice(0,4);
-const ticker=[
- {tag:'欢迎',content:'这里记录我做的软件与学习笔记'},
- {tag:'文章',content:'Python、工程制图与网络调试'},
- {tag:'项目',content:'每项功能都会标明开发状态'}
-];
----
-<Base title="07xh · 个人空间" description="07xh 的个人博客：软件项目、技术文章、工程制图与学习记录。">
-<section class="home-intro">
-  <div class="intro-grid" aria-hidden="true"></div>
-  <div class="intro-copy">
-    <div class="home-eyebrow"><i></i> PERSONAL SPACE · 07xh</div>
-    <h1>你好，<br/>这里是 <em>07xh</em><span>.</span></h1>
-    <p class="intro-head">写点程序，做点项目，也记下遇到的问题。</p>
-    <p class="intro-description">这里有自己做的软件、Python 和工程制图笔记，还有一些正在慢慢完善的东西。</p>
-    <div class="intro-cta"><a href="/posts/" class="intro-button">开始阅读 <span>↗</span></a><a href="/projects/" class="intro-quiet">看看项目 →</a></div>
-  </div>
-  <div class="intro-art" aria-label="文章、项目与技术笔记的动态拼贴">
-    <div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
-    <div class="art-sheet art-sheet-main"><span class="art-overline">/ IDEAS & BUILDS</span><strong>写代码。<br/>记下来。<br/>继续做。</strong><span class="art-mini">07xh · 2026</span></div>
-    <div class="art-sheet art-sheet-one"><span>PYTHON</span><b>for item<br/>in ideas:</b><small>keep learning ↗</small></div>
-    <div class="art-sheet art-sheet-two"><span>ENGINEERING</span><svg viewBox="0 0 100 70" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="m15 26 34-14 34 14-34 15-34-15Zm0 0v28l34 15V41m34-15v28L49 69"/><path d="m25 54 29-13m16-9V13" stroke-dasharray="3 3"/></svg></div>
-    <div class="art-stamp">EST. / 07</div>
-  </div>
-  <div class="intro-bottom"><span>SCROLL TO EXPLORE ↓</span><span>个人项目 · 技术笔记 · 学习记录</span></div>
-</section>
-<HomeTicker items={ticker}/>
-<HomeCompass/>
-<section class="home-section home-latest" aria-labelledby="latest-title">
- <header class="section-heading"><div><span class="section-kicker">01 / JOURNAL</span><h2 id="latest-title">最近的文章<span>.</span></h2></div><a href="/posts/">查看全部文章 ↗</a></header>
- <div class="home-article-list">{posts.map((p,i)=><a class="home-post-row" href={'/posts/'+p.id+'/'}><span class="home-post-number">{String(i+1).padStart(2,'0')}</span><div><strong>{p.data.title}</strong><p>{p.data.description}</p><small>{p.data.category||'学习笔记'} · {p.data.published.toISOString().slice(0,10)}</small></div><span class="row-arrow">↗</span></a>)}</div>
- {posts.length===0&&<p class="empty-note">文章正在迁移中。</p>}
-</section>
-<section class="home-section home-project-block" aria-labelledby="project-title">
- <header class="section-heading"><div><span class="section-kicker">02 / PROJECTS</span><h2 id="project-title">正在做的项目<span>.</span></h2></div><a href="/projects/">全部项目 ↗</a></header>
- <div class="home-projects">{projects.map((p,i)=><a class="home-project-card" href={'/projects/'+p.id+'/'}><span class="project-meta">{String(i+1).padStart(2,'0')} / {p.data.status||'开发中'}</span><strong>{p.data.title}</strong><p>{p.data.description}</p><div class="project-tags">{p.data.tags.slice(0,3).map(t=><span>{t}</span>)}</div><span class="project-go">了解更多 ↗</span></a>)}</div>
-</section>
-<section class="home-section home-updates" aria-labelledby="moments-title">
- <header class="section-heading"><div><span class="section-kicker">03 / LOGBOOK</span><h2 id="moments-title">近期动态<span>.</span></h2></div><a href="/dynamic/">查看动态 ↗</a></header>
- <div class="home-moments">{moments.map(m=><article class="home-moment"><time datetime={m.data.published.toISOString()}>{m.data.published.toISOString().slice(0,10)}</time><p>{m.body.replace(/[#*_~\[\]()>]/g,'').slice(0,140)}</p></article>)}</div>
- {moments.length===0&&<p class="empty-note">动态正在迁移中。</p>}
-</section>
-<section class="idea-home" data-idea-root>
- <div class="home-section">
-   <div class="idea-heading"><span class="section-kicker">04 / KEEP EXPLORING</span><h2>从一个想法开始</h2><p>整理想法、动手实现、不断修改。这就是这个网站的日常。</p></div>
-   <div class="idea-scene" data-index-scene data-scene-phase="team">
-      <div class="idea-prompt"><span data-scene-text>今天想做点什么？</span><span class="idea-send">↗</span></div>
-      <div class="idea-line" aria-hidden="true"></div>
-      <div class="idea-choices">
-       <a href="/posts/"><b>读文章</b><small>学习 / 技术笔记</small></a>
-       <a href="/projects/"><b>看项目</b><small>软件 / 开发实践</small></a>
-       <a href="/dynamic/"><b>看动态</b><small>最近 / 正在进行</small></a>
-      </div>
-   </div>
- </div>
-</section>
-<script>
-import { bootHomeIndexScene } from '../utils/home-index-scene-controller';
-const root=document.querySelector<HTMLElement>('[data-idea-root]');
-if(root)bootHomeIndexScene(root);
-</script>
-</Base>
+import HeroDialogue from "@components/layout/HeroDialogue.astro";
+import HomeBlinds from "@components/layout/HomeBlinds.astro";
+import HomeDataLayer from "@components/layout/HomeDataLayer.astro";
+import HomeHero from "@components/layout/HomeHero.astro";
+import HomeMobile from "@components/layout/HomeMobile.astro";
+import SiteStructuredData from "@/components/seo/SiteStructuredData.astro";
+import { siteConfig } from "@/config";
+import MainGridLayout from "@/layouts/MainGridLayout.astro";
+import "@/styles/components/home-data-layer.css";
+import "@/styles/components/home-hero-dialogue.css";
+import "@/styles/components/home-hero.css";
+import "@/styles/components/home-section.css";
+import "@/styles/components/home-mobile.css";
+import "@/styles/components/home-blinds.css";---
+
+<MainGridLayout
+	title="软件项目与技术笔记"
+	description={siteConfig.description}
+	hasOwnH1={true}
+>
+	<SiteStructuredData slot="head" />
+	<div class="home-page home-page--motion-pending">
+		<HomeHero />
+		<HomeDataLayer />
+		{/* 左下角角色是 sticky 的，必须排在第二层之后，才会一路停到第二层底部 */}
+		<HeroDialogue />
+		<HomeBlinds />
+		<HomeMobile />
+	</div>
+</MainGridLayout>
