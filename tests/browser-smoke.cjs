@@ -8,11 +8,40 @@ const widths = [{name:"desktop",w:1440,h:900},{name:"tablet",w:820,h:1180},{name
 const paths = ["/","/projects/","/projects/dorm-os/","/dynamic/","/list/","/posts/","/tags/","/archive/","/about/"];
 const output="artifacts/ui-smoke";
 fs.mkdirSync(output,{recursive:true});
+async function checkHeroAutoplay(browser){
+ const context=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:"no-preference"});
+ const page=await context.newPage();
+ const errors=[];
+ page.on("pageerror",error=>errors.push(error.message));
+ const isAssembled=()=>{
+  const picture=document.querySelector("[data-hero-mosaic-complete]");
+  const cards=[...document.querySelectorAll(".home-hero__intro-card")];
+  return picture&&getComputedStyle(picture).visibility==="visible"&&
+   Number(getComputedStyle(picture).opacity)>0.99&&cards.length===3&&
+   cards.every(card=>Number(getComputedStyle(card).opacity)>0.99);
+ };
+ try{
+  await page.goto(base+"/",{waitUntil:"domcontentloaded",timeout:60000});
+  await page.waitForFunction(isAssembled,null,{timeout:20000});
+  assert.equal(await page.evaluate(()=>window.scrollY),0,"hero must assemble without scrolling the page");
+  await page.evaluate(()=>window.scrollTo(0,window.innerHeight+100));
+  await page.waitForTimeout(300);
+  await page.evaluate(()=>window.scrollTo(0,0));
+  await page.waitForTimeout(700);
+  assert(await page.evaluate(isAssembled),"scrolling back must preserve the assembled picture");
+  await page.setViewportSize({width:1280,height:800});
+  await page.waitForTimeout(700);
+  assert(await page.evaluate(isAssembled),"resizing must preserve the assembled picture");
+  await page.screenshot({path:output+"/desktop-hero-autoplay.png",fullPage:false});
+  assert.equal(errors.length,0,"Autoplay browser exceptions: "+errors.join(" | "));
+ }finally{await context.close();}
+}
 async function main(){
  const staticAssets=["/brand/07xh-ship.svg","/project-media/dorm-os-home.webp","/project-media/dorm-os-tablet.webp","/project-media/draftai-projection.webp"];
  const browser=await chromium.launch({headless:true});
  const results=[];
  try{
+  await checkHeroAutoplay(browser);
   for(const device of widths){
    const context=await browser.newContext({viewport:{width:device.w,height:device.h},deviceScaleFactor:1,reducedMotion:"reduce"});
    const page=await context.newPage();

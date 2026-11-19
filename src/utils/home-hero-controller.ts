@@ -3,10 +3,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import type { HeroMosaicConfig } from "@/types/config";
 import { initHomeHeroDialogue } from "@/utils/home-hero-dialogue";
 import { createFlyText, type FlyTextHandle } from "@/utils/home-hero-fly-text";
-import {
-	createHeroPhotoFramePaths,
-	getHeroPinEndDistance,
-} from "@/utils/home-hero-motion";
+import { createHeroPhotoFramePaths } from "@/utils/home-hero-motion";
 import { initHomeHeroRain } from "@/utils/home-hero-rain";
 import {
 	type HomeHeroWordmarkController,
@@ -64,6 +61,9 @@ const GUIDE_DASH_FLOW = GUIDE_DASH_PERIOD * GUIDE_DASH_CYCLES;
 const TITLE_EXIT_TIME = 0.72;
 /** 标题淡出时向上抬的距离（px），与整图离场同向 */
 const TITLE_EXIT_LIFT = 46;
+/** 复用原拼合编排，按时间自动播放；入场标题有短暂驻留后开始。 */
+const HERO_AUTOPLAY_DURATION = 4;
+const HERO_AUTOPLAY_DELAY = 1.3;
 let initialReloadHandled = false;
 
 /**
@@ -268,8 +268,6 @@ export function mountHomeHero(): () => void {
 		),
 	);
 	let timeline: ReturnType<typeof gsap.timeline> | null = null;
-	let heroScrollTrigger: ReturnType<typeof ScrollTrigger.create> | null = null;
-	let scrollDriver: ReturnType<typeof gsap.to> | null = null;
 	let tilesIntroTimeline: ReturnType<typeof gsap.timeline> | null = null;
 	let textIntroTimeline: ReturnType<typeof gsap.timeline> | null = null;
 	let flyHandles: FlyTextHandle[] = [];
@@ -277,6 +275,8 @@ export function mountHomeHero(): () => void {
 	let wordmark: HomeHeroWordmarkController | null = null;
 	let flyLayoutTimer = 0;
 	let hasPlayedTilesIntro = false;
+	let textReady = false;
+	let hasScheduledAutoplay = false;
 	const mosaicGeometry = {
 		heroWidth: 0,
 		heroHeight: 0,
@@ -290,7 +290,7 @@ export function mountHomeHero(): () => void {
 		scale: 1,
 	};
 
-	// 用户开始滚动时立即完成进行中的入场动画，交由 scrub 时间线接管
+	// 拼合开始前结束入场，避免入场终帧覆盖主时间线的退场状态。
 	const completePendingIntros = () => {
 		if (tilesIntroTimeline) {
 			tilesIntroTimeline.progress(1);
@@ -341,6 +341,24 @@ export function mountHomeHero(): () => void {
 		rainWanted = rainActive;
 		syncRain();
 		wordmark?.setActive(timelineTime < TITLE_EXIT_TIME);
+	};
+
+	const startAutoplay = (): void => {
+		if (
+			disposed ||
+			!timeline ||
+			!textReady ||
+			!hasPlayedTilesIntro ||
+			hasScheduledAutoplay
+		)
+			return;
+		hasScheduledAutoplay = true;
+		// 由 animationContext 登记，离开首页时会一并取消延迟和动画。
+		gsap.delayedCall(HERO_AUTOPLAY_DELAY, () => {
+			if (disposed || !timeline) return;
+			completePendingIntros();
+			timeline.timeScale(timeline.duration() / HERO_AUTOPLAY_DURATION).play(0);
+		});
 	};
 
 	// computed width / height 不受 transform 影响且保留小数；只在挂载和 refresh 时读布局。
@@ -534,70 +552,6 @@ export function mountHomeHero(): () => void {
 		autoAlpha: (index: number) => (tiles[index].initiallyVisible ? 1 : 0),
 	};
 
-	const getBaseScrollDistance = () =>
-		mobileQuery.matches
-			? getHeroPinEndDistance(
-					config.mosaic.mobileScrollDistance,
-					window.innerHeight,
-					config.mosaic.mobileMinViewports,
-				)
-			: getHeroPinEndDistance(
-					config.mosaic.desktopScrollDistance,
-					window.innerHeight,
-					config.mosaic.desktopMinViewports,
-				);
-
-	const getDialogueEndProgress = () => {
-		const duration = Math.max(0.001, timeline?.duration() ?? 1);
-		return Math.min(1, DIALOGUE_REVEAL_END_TIME / duration);
-	};
-
-	const getDialogueTailDistance = () => {
-		if (getDialogueEndProgress() >= 1) return 0;
-		return Math.max(
-			0,
-			mobileQuery.matches
-				? config.mosaic.mobileDialogueTailDistance
-				: config.mosaic.desktopDialogueTailDistance,
-		);
-	};
-
-	const getCompressedScrollDistance = () =>
-		getBaseScrollDistance() * getDialogueEndProgress() +
-		getDialogueTailDistance();
-
-	const mapScrollProgressToTimelineProgress = (scrollProgress: number) => {
-		const progress = Math.min(1, Math.max(0, scrollProgress));
-		const baseDistance = getBaseScrollDistance();
-		const dialogueEndProgress = getDialogueEndProgress();
-		const preservedDistance = baseDistance * dialogueEndProgress;
-		const tailDistance = getDialogueTailDistance();
-		const scrollDistance = progress * (preservedDistance + tailDistance);
-
-		if (scrollDistance <= preservedDistance) {
-			return Math.min(
-				dialogueEndProgress,
-				scrollDistance / Math.max(1, baseDistance),
-			);
-		}
-		if (tailDistance <= 0) return 1;
-
-		return Math.min(
-			1,
-			dialogueEndProgress +
-				((scrollDistance - preservedDistance) / tailDistance) *
-					(1 - dialogueEndProgress),
-		);
-	};
-
-	const renderTimelineForScroll = (scrollProgress: number) => {
-		const progress = mapScrollProgressToTimelineProgress(scrollProgress);
-		// 先结束入场再渲染滚动帧，避免入场终帧覆盖本帧已经算好的淡出状态。
-		if (progress > 0.002) completePendingIntros();
-		timeline?.totalProgress(progress);
-		updateSceneState(progress);
-	};
-
 	const refreshMosaicGeometry = () => {
 		if (!timeline || !measureMosaic()) return;
 		updatePhotoFrame();
@@ -608,6 +562,7 @@ export function mountHomeHero(): () => void {
 		gsap.set(tileElements, { ...initialTileVars });
 		timeline.invalidate();
 		timeline.totalProgress(progress, true);
+		updateSceneState(progress);
 	};
 
 	const buildTimeline = () => {
@@ -645,12 +600,13 @@ export function mountHomeHero(): () => void {
 		timeline = gsap.timeline({
 			defaults: { ease: "none" },
 			paused: true,
+			onUpdate: () => updateSceneState(timeline?.totalProgress() ?? 0),
 		});
 
 		timeline.to({}, { duration: 1 });
-		// 这条 scrub 时间线会在画布尺寸变化后 invalidate()。
+		// 这条自动播放时间线会在画布尺寸变化后 invalidate()。
 		// GSAP 的 to 补间在 invalidate 后会把「当前 DOM 值」重新记录为起点：
-		// 若 invalidate 发生在标题已淡出的深滚动状态，起点被记成 autoAlpha 0，
+		// 若 invalidate 发生在标题已经淡出的播放状态，起点被记成 autoAlpha 0，
 		// 之后滚回顶部标题永远不可见。因此所有补间一律 fromTo 显式锚定起点。
 		timeline.fromTo(
 			title,
@@ -910,46 +866,25 @@ export function mountHomeHero(): () => void {
 			INTERACTION_HOLD_START,
 		);
 
-		const scrollState = { progress: 0 };
-		scrollDriver = gsap.to(scrollState, {
-			progress: 1,
-			duration: 1,
-			ease: "none",
-			paused: true,
-			onUpdate: () => renderTimelineForScroll(scrollState.progress),
-		});
-
-		heroScrollTrigger = ScrollTrigger.create({
-			id: "home-hero-two-layer",
+		// ScrollTrigger 只负责布局刷新，不再 pin 首屏或把滚动进度写回动画。
+		ScrollTrigger.create({
+			id: "home-hero-layout",
 			trigger: hero,
 			start: "top top",
-			end: () => `+=${getCompressedScrollDistance()}`,
-			pin: hero,
-			pinSpacing: true,
-			scrub: config.mosaic.scrub,
-			anticipatePin: 1,
-			animation: scrollDriver,
-			invalidateOnRefresh: true,
-			onRefresh: (self) => {
-				// refreshInit 时 pin 可能还锁着旧宽度，必须等 pin 恢复新布局后再测量。
+			end: "bottom top",
+			onRefresh: () => {
 				animationContext.add(refreshMosaicGeometry);
-				self.update();
-				renderTimelineForScroll(scrollDriver?.progress() ?? self.progress);
 				animationContext.add(playTilesIntro);
 			},
-			onUpdate: (self) => {
-				if (!scrollDriver) renderTimelineForScroll(self.progress);
-			},
 		});
-
-		renderTimelineForScroll(heroScrollTrigger.progress);
+		updateSceneState(0);
 		// 影像层要等 await import("gsap") 之后才建 pin，比这里晚若干微任务。
 		// 立刻 refresh 会按「还没有影像层 .pin-spacer」的文档高度算 pin 起止点，
 		// 攒到下一帧统一 refresh，那时各层的 pin 都已插好。
 		requestScrollTriggerRefresh(ScrollTrigger);
 	};
 
-	// 入场只动内部图片，外层的位置、景深和透明度始终交给滚动时间线。
+	// 入场只动内部图片，外层的位置、景深和透明度由自动拼合时间线接管。
 	// 不再补间模糊，避免入场时反复栅格化图片；初始景深仍由外层保留。
 	const playTilesIntro = () => {
 		if (
@@ -959,6 +894,7 @@ export function mountHomeHero(): () => void {
 		)
 			return;
 		hasPlayedTilesIntro = true;
+		startAutoplay();
 		if (!tileIntroElements.length) return;
 		tilesIntroTimeline = gsap.timeline({
 			onComplete: () => {
@@ -1049,7 +985,7 @@ export function mountHomeHero(): () => void {
 
 				mountContactScatter();
 
-				const progress = heroScrollTrigger?.progress ?? 0;
+				const progress = timeline?.totalProgress() ?? 0;
 				if (progress <= 0.01) {
 					const intro = gsap.timeline();
 					const contactEntrances = flyHandles
@@ -1074,6 +1010,8 @@ export function mountHomeHero(): () => void {
 						delay: 0.5,
 					});
 				}
+				textReady = true;
+				startAutoplay();
 			});
 		});
 	};
@@ -1111,7 +1049,6 @@ export function mountHomeHero(): () => void {
 			if (disposed) return;
 			window.scrollTo(0, 0);
 			timeline?.progress(0);
-			scrollDriver?.progress(0);
 			updateSceneState(0);
 			requestScrollTriggerRefresh(ScrollTrigger);
 			history.scrollRestoration = "auto";
@@ -1129,8 +1066,6 @@ export function mountHomeHero(): () => void {
 		dialogue.destroy();
 		abortController.abort();
 		animationContext.revert();
-		heroScrollTrigger = null;
-		scrollDriver = null;
 		timeline = null;
 		tilesIntroTimeline = null;
 		textIntroTimeline = null;
