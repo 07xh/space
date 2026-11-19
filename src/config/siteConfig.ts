@@ -183,7 +183,7 @@ export const siteConfig: SiteConfig = {
 		// 相册页面开关
 		gallery: false,
 		// 收藏API页面开关
-		collections: true,
+		collections: false,
 		// 文档页面开关（/list/ 文章列表，导航栏「文章」下拉里显示为「文档」）
 		postList: true,
 		// 归档页面开关

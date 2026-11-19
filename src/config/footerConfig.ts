@@ -18,8 +18,8 @@ export const footerConfig: FooterConfig = {
 		{ label: "框架", name: "Astro", href: "https://astro.build" },
 		{
 			label: "主题",
-			name: "Firefly",
-			href: "https://github.com/CuteLeaf/Firefly",
+			name: "Firefly（基于 MmzMing）",
+			href: "https://github.com/MmzMing/my-blog",
 		},
 	],
 };

@@ -6,5 +6,5 @@
 
 - [查看项目](/projects/)
 - [阅读文章](/posts/)
-- [学习专题](/topics/)
+- [学习专题](/archive/)
 - [GitHub](https://github.com/07xh)
