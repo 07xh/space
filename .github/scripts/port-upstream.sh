@@ -14,7 +14,7 @@ rsync -a --delete \
   /tmp/space-upstream/ ./
 
 # Never inherit the upstream author's CI/deploy workflows or our obsolete npm CI.
-rm -f .github/workflows/build.yml
+# Workflow files are managed separately by the GitHub connector.
 
 # Preserve the user's actual public content. Do NOT copy source author's posts.
 rm -rf src/content/posts src/content/spec
@@ -216,29 +216,6 @@ from the repository's software license.
 EOF
 
 mkdir -p .github/workflows
-cat > .github/workflows/build.yml <<'EOF'
-name: Validate imported Astro theme
-on:
-  push:
-    branches: [main, import/mmzhiku-original]
-  pull_request:
-permissions:
-  contents: read
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.14.4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
-      - run: CI_SKIP_REMOTE_FONTS=1 pnpm build
-EOF
 
 printf 'Upstream revision: '
 git -C /tmp/space-upstream rev-parse HEAD
