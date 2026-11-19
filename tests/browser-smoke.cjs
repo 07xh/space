@@ -21,7 +21,7 @@ async function main(){
     errors.length=0;
     const response=await page.goto(base+path,{waitUntil:"domcontentloaded",timeout:60000});
     assert(response && response.status()===200,device.name+" "+path+" returned "+response?.status());
-    await page.waitForTimeout(650);
+    await page.waitForTimeout(path==="/"?1850:600);
     const h1=await page.locator("h1").count();
     assert(h1>0,device.name+" "+path+" has no H1");
     if(path==="/dynamic/"){
@@ -35,10 +35,17 @@ async function main(){
      assert(items>=8,"project list must include real source projects");
     }
     if(device.name==="mobile"&&path==="/"){
-     const btn=page.locator("#nav-menu-switch");
-     assert(await btn.isVisible(),"original mobile navbar trigger must be visible");
+     // mmzhiku intentionally hides the desktop Navbar below 768px.
+     // The original bottom MobileDock is the mobile navigation.
+     const btn=page.locator("#mobile-dock-menu-btn");
+     assert(await btn.isVisible(),"original MobileDock trigger must be visible");
+     await page.screenshot({path:output+"/mobile-dock-closed.png",fullPage:false});
      await btn.click();
-     await page.waitForTimeout(250);
+     await page.waitForTimeout(380);
+     const expanded=await btn.getAttribute("aria-expanded");
+     assert.equal(expanded,"true","original MobileDock should expand");
+     await page.screenshot({path:output+"/mobile-dock-open.png",fullPage:false});
+     await btn.click();
     }
     const overflow=await page.evaluate(()=>Math.max(
      document.documentElement.scrollWidth,document.body.scrollWidth)-innerWidth);
