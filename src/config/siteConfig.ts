@@ -7,7 +7,7 @@ const SITE_LANG = "zh_CN";
 
 export const siteConfig: SiteConfig = {
 	// 站点标题
-	title: "07xh 的个人空间",
+	title: "小慌的个人空间",
 
 	// 站点副标题
 	subtitle: "Space",
@@ -33,7 +33,7 @@ export const siteConfig: SiteConfig = {
 
 	// 站点关键词
 	keywords: [
-		"07xh",
+		"小慌",
 		"Python",
 		"开源软件",
 		"Astro",
@@ -78,7 +78,7 @@ export const siteConfig: SiteConfig = {
 			alt: "logo",
 		},
 		// 导航栏标题
-		title: "07xh 的个人空间",
+		title: "小慌的个人空间",
 		// 全宽导航栏，导航栏是否占满屏幕宽度
 		widthFull: false,
 	},

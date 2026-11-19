@@ -6,10 +6,10 @@ export const homeConfig: HomeConfig = {
 	avatarBanner: "/project-media/dorm-os-tablet.webp",
 
 	// 名字
-	name: "07xh",
+	name: "小慌",
 
 	// 首页展示名字（留空则使用 name）
-	displayName: "07xh",
+	displayName: "小慌",
 
 	// 职业/身份标签
 	occupation: "[学生 / 软件开发与技术学习]",
@@ -57,11 +57,11 @@ export const homeConfig: HomeConfig = {
 		photo: {
 			main: {
 				image: "/project-media/dorm-os-home.webp",
-				author: "07xh · 校序",
+				author: "小慌 · 校序",
 			},
 			overlay: {
 				image: "/project-media/draftai-projection.webp",
-				author: "07xh · 绘序",
+				author: "小慌 · 绘序",
 			},
 			intro: {
 				direction: "Python、工程制图、移动设备与个人软件实践",
@@ -73,7 +73,7 @@ export const homeConfig: HomeConfig = {
 		dialogue: {
 			enabled: false,
 			lines: [
-				"这里是 07xh 的个人空间。",
+				"这里是小慌的个人空间。",
 				"项目的功能状态会随开发进度更新。",
 				"文章记录学习过程，也记录遇到的问题。",
 			],

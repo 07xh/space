@@ -9,27 +9,42 @@
 - 不将预览项目绑定到现有正式域名
 - 通过 `*.pages.dev` 独立测试桌面、平板和手机交互
 
-## 连接 GitHub 仓库
+## GitHub Actions 直接上传
 
-在 Cloudflare 控制台的 **Workers & Pages → Create → Pages → Connect to Git**
-选择 `07xh/space`，不要选择 `07xh/Firefly`。
+使用 Cloudflare Pages **直接上传**项目 `07xh-space-preview`，无需连接 Git。
+`.github/workflows/deploy-preview.yml` 在 `07xh/space` 的 `main` 更新或手动触发时，
+安装依赖、运行 `pnpm check` 和 `pnpm build`，再用 Wrangler 上传 `dist`。
+
+在仓库 Actions Secrets 中配置 `CLOUDFLARE_API_TOKEN`（当前账户的 Pages Edit 权限）
+和 `CLOUDFLARE_ACCOUNT_ID`。不得把 Token 写入仓库。
+
+工作流会检查并创建缺失的直接上传项目。也可以先用 Wrangler 手动创建：
+
+```bash
+pnpm dlx wrangler@4 pages project create 07xh-space-preview --production-branch=main
+```
+
+工作流部署命令：
+
+```bash
+pnpm dlx wrangler@4 pages deploy dist --project-name=07xh-space-preview --branch=main
+```
 
 | 参数 | 设置 |
 |---|---|
 | 生产分支 | `main`（仅部署到新的 Pages 项目） |
-| Framework preset | Astro |
-| Root directory | `/` |
+| 构建位置 | GitHub Actions，仓库根目录 |
 | Build command | `pnpm build` |
 | Build output directory | `dist` |
 | Node.js | 22.12.0 或更新的 22.x |
 | pnpm | 9.14.4（与 CI 使用的版本一致） |
-| 环境变量 | 可设置 `NODE_VERSION=22.16.0`、`PNPM_VERSION=9.14.4` |
+| 构建环境变量 | `SPACE_SITE_URL=https://07xh-space-preview.pages.dev`、`CI_SKIP_REMOTE_FONTS=1` |
 
 本仓库默认输出静态页面，不需要安装 `@astrojs/cloudflare` SSR 适配器，
 也不需要把旧站的 KV、API Token、会话密钥或 GitHub 写入凭证复制到预览项目。
 
-Cloudflare 提供预览网址后，构建时可读取 `CF_PAGES_URL` 生成与部署地址一致的
-canonical/sitemap 地址。如果以后绑定 `space.0701000.xyz`，
+Actions 构建时显式设置 `SPACE_SITE_URL`，生成与部署地址一致的
+canonical/sitemap 地址；直接上传不会自动提供构建环境变量。如果以后绑定 `space.0701000.xyz`，
 在正式环境设置 `SPACE_SITE_URL=https://space.0701000.xyz` 后重新构建。
 
 ## 上线验收
@@ -49,5 +64,5 @@ canonical/sitemap 地址。如果以后绑定 `space.0701000.xyz`，
 
 参考官方文档：
 
-- https://developers.cloudflare.com/pages/configuration/build-configuration/
+- https://developers.cloudflare.com/pages/how-to/use-direct-upload-with-continuous-integration/
 - https://docs.astro.build/en/guides/integrations-guide/cloudflare/

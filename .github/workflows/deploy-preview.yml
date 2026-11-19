@@ -1,0 +1,59 @@
+name: Deploy Cloudflare Pages preview
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-pages-space-preview
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == '07xh/space' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SPACE_SITE_URL: https://07xh-space-preview.pages.dev
+      CI_SKIP_REMOTE_FONTS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.14.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check Astro
+        run: pnpm check
+      - name: Build static site
+        run: pnpm build
+      - name: Ensure preview project exists
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          project_api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects"
+          status=$(curl --silent --show-error --output /tmp/pages-project.json --write-out '%{http_code}' \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${project_api}/07xh-space-preview")
+          case "$status" in
+            200) echo 'Preview project already exists' ;;
+            404) curl --fail --silent --show-error --output /dev/null \
+              -X POST -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H 'Content-Type: application/json' \
+              --data '{"name":"07xh-space-preview","production_branch":"main"}' "$project_api" ;;
+            *) echo "::error::Cloudflare project lookup returned HTTP $status"; exit 1 ;;
+          esac
+      - name: Deploy preview project
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=07xh-space-preview --branch=main

@@ -19,7 +19,7 @@ const markdownImages = (body: string) => Array.from(
 const cards=await Promise.all(entries.map(async e=>({
   moment:{
     id:"dynamic-"+e.id.replace(/[^a-zA-Z0-9_-]/g,"-"),
-    author:"07xh", avatar:"/brand/07xh-ship.svg",
+    author:"小慌", avatar:"/brand/07xh-ship.svg",
     published:e.data.published.toISOString(),pinned:e.data.pinned,
     location:e.data.location,images:markdownImages(e.body??""),tags:[],body:e.body??""
   },
