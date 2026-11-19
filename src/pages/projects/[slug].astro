@@ -1,0 +1,10 @@
+---
+import Base from '../../layouts/Base.astro';
+import Gallery from '../../components/Gallery.svelte';
+import {getProjects} from '../../lib/content';
+import {toProject} from '../../lib/projects';
+export async function getStaticPaths(){return (await getProjects()).filter(e=>!['firefly','example-project'].includes(e.id)).map(e=>({params:{slug:e.id}}));}
+const projects=(await getProjects()).map(toProject).filter(p=>!['firefly','example-project'].includes(p.slug));
+const selected=projects.find(p=>p.slug===Astro.params.slug);
+---
+<Base title={(selected?.title??'项目')+' · 07xh'} description={selected?.description}><Gallery client:load {projects} initialSlug={Astro.params.slug}/></Base>

@@ -1,0 +1,26 @@
+---
+import '../styles/site.css';
+const {title='07xh · 项目与技术笔记',description='07xh 的软件项目、学习笔记和开发实践。'}=Astro.props;
+const pathname=Astro.url.pathname;
+const links=[['项目','/'],['文章','/posts/'],['动态','/dynamic/'],['关于','/about/']];
+---
+<!doctype html><html lang="zh-CN"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="description" content={description}/><meta name="theme-color" content="#142236"/>
+<link rel="canonical" href={new URL(pathname,Astro.site)}/><title>{title}</title>
+<script is:inline>try{document.documentElement.dataset.theme=localStorage.getItem('space-theme')||'light'}catch{}</script>
+</head><body>
+<a class="skip" href="#content">跳转到内容</a>
+<header class="top"><a class="logo" href="/" aria-label="07xh 首页"><span class="logo-icon">↗</span>07xh<small> / SPACE</small></a>
+<nav aria-label="网站导航">{links.map(([label,href])=><a href={href} aria-current={pathname===href||(href==='/'&&pathname.startsWith('/projects/'))?'page':undefined}>{label}</a>)}</nav>
+<div class="tools"><a href="/search/" title="站内搜索" aria-label="搜索">⌕</a><button type="button" data-theme title="切换主题" aria-label="切换主题">◐</button></div>
+</header>
+<main id="content"><slot/></main>
+<footer class="foot"><b>07xh.</b><span>记录真实的项目、开发过程与学习笔记。</span><a href="https://github.com/07xh">GitHub ↗</a></footer>
+<script is:inline>
+document.querySelector('[data-theme]')?.addEventListener('click',()=>{
+ const next=document.documentElement.dataset.theme==='dark'?'light':'dark';
+ document.documentElement.dataset.theme=next;
+ try{localStorage.setItem('space-theme',next)}catch{}
+});
+</script></body></html>

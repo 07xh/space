@@ -1,0 +1,11 @@
+{
+  "name": "07xh-space-preview",
+  "compatibility_date": "2026-11-19",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  }
+}

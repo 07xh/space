@@ -1,0 +1,13 @@
+---
+import Base from '../layouts/Base.astro';
+import {getPosts,getProjects} from '../lib/content';
+const posts=await getPosts(),projects=await getProjects();
+const entries=[...posts.map(x=>({label:'文章',title:x.data.title,url:'/posts/'+x.id+'/',desc:x.data.description})),...projects.filter(x=>!['firefly','example-project'].includes(x.id)).map(x=>({label:'项目',title:x.data.title,url:'/projects/'+x.id+'/',desc:x.data.description}))];
+---
+<Base title="搜索 · 07xh"><section class="editorial"><div class="eyebrow">SEARCH / 07xh</div><h1 class="page-title">搜索<span class="period">.</span></h1>
+<input id="search" placeholder="搜索项目和文章…" aria-label="搜索项目和文章" class="search-field"/><div id="results" class="post-list">
+{entries.map(e=><a class="post-row" data-entry data-content={(e.title+' '+e.desc).toLowerCase()} href={e.url}><span class="post-count">{e.label}</span><div class="post-info"><strong>{e.title}</strong><p>{e.desc}</p></div><span>↗</span></a>)}
+</div></section><script is:inline>
+const input=document.querySelector('#search');
+input?.addEventListener('input',()=>{const q=input.value.trim().toLowerCase();document.querySelectorAll('[data-entry]').forEach(e=>e.hidden=!e.dataset.content.includes(q))});
+</script></Base>

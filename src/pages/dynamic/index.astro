@@ -1,0 +1,12 @@
+---
+import Base from '../../layouts/Base.astro';
+import {getMoments} from '../../lib/content';
+import {render} from 'astro:content';
+const moments=await getMoments();
+const rendered=await Promise.all(moments.map(async e=>({e,Content:(await render(e)).Content})));
+---
+<Base title="动态 · 07xh"><section class="editorial"><div class="eyebrow">LOG / MOMENTS</div>
+<h1 class="page-title">最近在做<span class="period">.</span></h1><p class="intro">不够写成长文章的进度与想法，都放在这里。</p>
+<div class="timeline">{rendered.map(({e,Content})=><article class="moment">
+<time datetime={e.data.published.toISOString()}>{e.data.published.toISOString().slice(0,10)}</time>
+<div class="moment-text"><Content/></div></article>)}</div></section></Base>

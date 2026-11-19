@@ -1,0 +1,8 @@
+---
+import Base from '../layouts/Base.astro';
+import Gallery from '../components/Gallery.svelte';
+import {getProjects} from '../lib/content';
+import {toProject} from '../lib/projects';
+const projects=(await getProjects()).map(toProject).filter(p=>p.slug!=='firefly'&&p.slug!=='example-project');
+---
+<Base title="07xh · 项目展厅"><Gallery client:load {projects}/></Base>

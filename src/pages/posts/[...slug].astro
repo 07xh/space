@@ -1,0 +1,26 @@
+---
+import Base from '../../layouts/Base.astro';
+import {render} from 'astro:content';
+import {getPosts} from '../../lib/content';
+export async function getStaticPaths(){return(await getPosts()).map(e=>({params:{slug:e.id},props:{entry:e}}));}
+const {entry}=Astro.props;
+const {Content,headings}=await render(entry);
+---
+<Base title={entry.data.title+' · 07xh'} description={entry.data.description}>
+<article class="reader"><a class="back" href="/posts/">← 所有文章</a>
+<header><span class="eyebrow">NOTE / {entry.data.category||'TECH'}</span><h1>{entry.data.title}</h1>
+<p>{entry.data.description}</p><time>{entry.data.published.toISOString().slice(0,10)}</time></header>
+<div class="reading-columns"><div class="prose" id="article-prose"><Content/></div>
+<aside class="toc"><b>文章目录</b><nav aria-label="文章目录">{headings.filter(h=>h.depth<=3).map(h=><a href={'#'+h.slug}>{h.text}</a>)}</nav>
+<div class="reader-tools"><button type="button" data-font="-1" aria-label="缩小字体">A−</button><button type="button" data-font="1" aria-label="放大字体">A+</button></div></aside></div>
+</article>
+<script>
+import {initCustomScrollbar} from '../../utils/scrollbar-utils';
+initCustomScrollbar();
+document.querySelectorAll<HTMLButtonElement>('[data-font]').forEach(btn=>btn.addEventListener('click',()=>{
+ const article=document.querySelector<HTMLElement>('#article-prose');if(!article)return;
+ const now=Number(article.dataset.size||17);
+ const size=Math.min(22,Math.max(14,now+Number(btn.dataset.font)));
+ article.dataset.size=String(size);article.style.fontSize=size+'px';
+}));
+</script></Base>
