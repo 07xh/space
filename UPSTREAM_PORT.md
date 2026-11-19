@@ -24,3 +24,8 @@ from the repository's software license.
 
 - `/dynamic/`: directly uses fqzlr-bk's MomentCard.astro and moments.css; the original hardcoded author and data are replaced by 07xh's Astro dynamic collection.
 - `/projects/[slug]/`: data-binding adaptation using original MmzMing MainGridLayout, PageTitle, Markdown, and tools card classes.
+
+## Media ownership migration
+- Home scene assets now point to already-imported 07xh-owned project screenshots and ship logo, preserving the original mmzhiku controllers and layouts.
+- Original portrait artwork, sticker audio and artist credits are not presented as 07xh material. Full media audit is still required before preview publication.
+- Dynamic Markdown images now use fqzlr's existing moment grid and upstream FancyboxManager, rather than a new lightbox.

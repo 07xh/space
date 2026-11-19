@@ -10,12 +10,18 @@ const entries=(await getCollection("dynamic")).sort((a,b)=>
   Number(b.data.pinned)-Number(a.data.pinned)||
   b.data.published.getTime()-a.data.published.getTime()
 );
+// Read Markdown image attachments into fqzlr's existing image grid.
+// The theme's FancyboxManager handles opening and navigation.
+const markdownImages = (body:string) => Array.from(
+  body.matchAll(/!\\[([^\\]]*)\\]\\((https?:\\/\\/[^\\s)]+)(?:\\s+["'][^"']*["'])?\\)/g),
+  match => match[2]
+);
 const cards=await Promise.all(entries.map(async e=>({
   moment:{
     id:"dynamic-"+e.id.replace(/[^a-zA-Z0-9_-]/g,"-"),
     author:"07xh", avatar:"/brand/07xh-ship.svg",
     published:e.data.published.toISOString(),pinned:e.data.pinned,
-    location:e.data.location,images:[],tags:[],body:e.body??""
+    location:e.data.location,images:markdownImages(e.body??""),tags:[],body:e.body??""
   },
   Content:(await render(e)).Content
 })));

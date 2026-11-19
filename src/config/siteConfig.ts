@@ -16,7 +16,7 @@ export const siteConfig: SiteConfig = {
 	// 使用 public 目录绝对路径，或远程 URL
 	avatar: {
 		owner: "/brand/07xh-ship.svg",
-		bot: "/assets/images/aut-bot.webp",
+		bot: "/brand/07xh-ship.svg",
 	},
 
 	// 站点 URL
@@ -159,7 +159,7 @@ export const siteConfig: SiteConfig = {
 	// QQ / 微信抓取器对 WebP 渲染不稳定，首页分享会出文字不出图。
 	// 与 coverImageConfig.randomCoverImage.fallback（随机封面图 API 失败的回退，走浏览器
 	// <img>，WebP 无碍）互不相干，两者是同一份美术的不同编码，并非重复配置
-	defaultOgImage: "/assets/images/aut.jpg",
+	defaultOgImage: "/project-media/dorm-os-home.webp",
 
 	// 页面加载动画配置
 	pageLoader: {

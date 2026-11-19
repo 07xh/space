@@ -44,6 +44,7 @@ const imagesArray = images || [];
 	class:list={["moment-item", pinned && "is-pinned"]}
 	data-moment-id={moment.id}
 	data-pinned={String(!!pinned)}
+	data-has-gallery={imagesArray.length > 0 ? "true" : undefined}
 >
 	{/* 左侧头像 */}
 	<div class="moment-avatar">
@@ -98,8 +99,10 @@ const imagesArray = images || [];
 				data-images={JSON.stringify(imagesArray)}
 			>
 				{imagesArray.slice(0, 9).map((img, index) => (
-					<button
-						type="button"
+					<a
+						href={img}
+						data-fancybox={moment.id}
+						data-src={img}
 						class="moment-image"
 						aria-label={`查看图片 ${index + 1}`}
 						data-image-index={String(index)}
@@ -115,7 +118,7 @@ const imagesArray = images || [];
 							decoding="async"
 							onload="this.classList.add('is-loaded')"
 						/>
-					</button>
+					</a>
 				))}
 			</div>
 		)}

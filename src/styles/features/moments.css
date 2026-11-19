@@ -936,3 +936,8 @@
   #pinned-feed .card-images { gap: 0.25rem; }
   #moments-feed .more-text { font-size: 1.25rem; }
 }
+
+/* When the original Markdown includes standalone image paragraphs, do not
+   duplicate them beneath the imported moment image grid. */
+.moment-item[data-has-gallery="true"] .moment-text p:has(> img:only-child),
+.moment-item[data-has-gallery="true"] .moment-text figure:has(> img:only-child) { display:none; }

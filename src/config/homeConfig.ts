@@ -3,7 +3,7 @@ import type { HomeConfig } from "../types/config";
 export const homeConfig: HomeConfig = {
 	// 资料卡横幅图（导航 Logo 资料卡第一层）
 	// 留空则回退为「站长头像模糊放大」当背景
-	avatarBanner: "/assets/images/avatar-banner.webp",
+	avatarBanner: "/project-media/dorm-os-tablet.webp",
 
 	// 名字
 	name: "07xh",
@@ -44,11 +44,11 @@ export const homeConfig: HomeConfig = {
 		},
 		contact: { platform: "GitHub", handle: "07xh" },
 		sticker: {
-			image: "/assets/images/home/doll.avif",
-			alt: "黑猫角色贴纸",
+			image: "/brand/07xh-ship.svg",
+			alt: "07xh 飞船",
 			sounds: {
-				press: "/assets/doll-press.mp3",
-				loosen: "/assets/doll-loosen.mp3",
+				press: "",
+				loosen: "",
 			},
 		},
 		// 拼合完成后的照片态：主图平面倾斜并左移，右侧三张介绍卡片错峰倒下；
@@ -56,12 +56,12 @@ export const homeConfig: HomeConfig = {
 		// author 填了就在图片右上角显示作者小标牌，留空不显示
 		photo: {
 			main: {
-				image: "/assets/images/home/home.avif",
-				author: "by 冰冰坚老师",
+				image: "/project-media/dorm-os-home.webp",
+				author: "07xh · 校序",
 			},
 			overlay: {
-				image: "/assets/images/home/home2.avif",
-				author: "by 冰冰坚老师",
+				image: "/project-media/draftai-projection.webp",
+				author: "07xh · 绘序",
 			},
 			intro: {
 				direction: "Python、工程制图、移动设备与个人软件实践",
@@ -98,7 +98,7 @@ export const homeConfig: HomeConfig = {
 	homeBlinds: {
 		enabled: true,
 		reveal: {
-			backgroundImage: "/assets/images/home-blinds/act1/1.webp",
+			backgroundImage: "/project-media/dorm-os-tablet.webp",
 			// 长条横移揭示的入场标题：标题单行显示（版式按 4 字排），
 			// 祝福语单行显示（版式按 5 字排），可自由增减条数
 			headline: {
@@ -178,41 +178,41 @@ export const homeConfig: HomeConfig = {
 				description: "以代码为梁、热爱为瓦，荒原上筑起一间自己的小屋。",
 				alt: "第一幕插画",
 				// 明信片左下角标题下的完整日期；删掉即只显示标题
-				date: "2026 / 05 / 07",
+				date: "2026 / 11 / 19",
 			},
 			items: [
 				{
-					title: "小屋落户",
-					description: "一纸备案落定，小屋自此有门有牌，堂堂正正晒着太阳。",
-					image: "/assets/images/home-blinds/act2/1.webp",
+					title: "校序",
+					description: "记录校序的开发与功能迭代。",
+					image: "/project-media/dorm-os-home.webp",
 					alt: "第二幕插画",
 					date: "2026 / 06 / 10",
 				},
 				{
-					title: "尘满窗台",
+					title: "绘序",
 					description: "人往学海拾新，倦意悄悄落了窗，小屋静候，蒙上薄尘。",
-					image: "/assets/images/home-blinds/act2/2.webp",
+					image: "/project-media/draftai-projection.webp",
 					alt: "第三幕插画",
 					date: "2026 / 06 / 21",
 				},
 				{
-					title: "重燃灯火",
+					title: "开发记录",
 					description: "拂去薄尘，重燃灯火，一砖一瓦再把小屋细细打磨。",
-					image: "/assets/images/home-blinds/act2/3.webp",
+					image: "/project-media/dorm-os-tablet.webp",
 					alt: "第四幕插画",
 					date: "2026 / 08 / 18",
 				},
 				{
-					title: "抵达之前",
+					title: "继续完善",
 					description: "笔墨暂歇，来日方长；下一程山水，且歌且行。",
-					image: "/assets/images/home-blinds/act2/4.webp",
+					image: "/brand/07xh-ship.svg",
 					alt: "第五幕插画",
 					date: "2026 / 09 / 01",
 				},
 			],
 			standImages: [
-				"/assets/images/home-blinds/act2-doll/1.gif",
-				"/assets/images/home-blinds/act2-doll/2.gif",
+				"/brand/07xh-ship.svg",
+				"/brand/07xh-ship.svg",
 			],
 		},
 	},
