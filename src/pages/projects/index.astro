@@ -1,0 +1,18 @@
+---
+import Base from '../../layouts/Base.astro';
+import {getProjects} from '../../lib/content';
+const projects=(await getProjects()).filter(p=>!['firefly','example-project'].includes(p.id));
+---
+<Base title="项目 · 07xh">
+<section class="editorial">
+<span class="eyebrow">PROJECTS / 07xh</span>
+<h1 class="page-title">项目<span class="period">.</span></h1>
+<p class="intro">我做过的软件和正在完善的功能。能用什么、还在验证什么，都写在项目详情里。</p>
+<div class="projects-list">
+{projects.map((p,i)=><a class="project-list-item" href={'/projects/'+p.id+'/'}>
+<span class="post-count">{String(i+1).padStart(2,'0')}</span><div>
+<h2>{p.data.title}</h2><small>{p.data.subtitle} · {p.data.status}</small>
+<p>{p.data.description}</p></div><span>↗</span>
+</a>)}
+</div>
+</section></Base>
