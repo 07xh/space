@@ -5,7 +5,7 @@ import PageTitle from "@/components/common/PageTitle.astro";
 import Markdown from "@/components/common/Markdown.astro";
 import "@/styles/collections.css";
 export async function getStaticPaths(){
- const entries=(await getCollection("projects",({data})=>!data.draft)).filter(p=>p.id!=="example-project");
+ const entries=(await getCollection("projects",({data})=>!data.draft)).filter(p=>!["example-project","firefly"].includes(p.id));
  return entries.map(project=>({params:{slug:project.id},props:{project}}));
 }
 const {project}=Astro.props;

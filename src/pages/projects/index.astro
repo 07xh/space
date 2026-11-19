@@ -7,7 +7,7 @@ import MainGridLayout from "@/layouts/MainGridLayout.astro";
 import "@/styles/collections.css";
 const title="项目";
 const description="正在制作和持续维护的软件工具，功能状态以项目介绍为准。";
-const projects=(await getCollection("projects", ({data})=>!data.draft)).filter(p=>p.id!=="example-project").sort((a,b)=>(a.data.order??0)-(b.data.order??0));
+const projects=(await getCollection("projects", ({data})=>!data.draft)).filter(p=>!["example-project","firefly"].includes(p.id)).sort((a,b)=>(a.data.order??0)-(b.data.order??0));
 const enabledGroups=[{category:"个人项目",description:"真实项目和当前进度",items:projects.map(p=>({
  name:p.data.title,url:`/projects/${encodeURIComponent(p.id)}/`,description:p.data.description,
  icon:"",status:p.data.status||"持续维护",enabled:true

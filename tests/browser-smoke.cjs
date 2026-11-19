@@ -54,6 +54,8 @@ async function main(){
     if(path==="/projects/"){
      const items=await page.locator('a[href^="/projects/"]').count();
      assert(items>=8,"project list must include real source projects");
+     assert.equal(await page.locator('a[href="/projects/firefly/"]').count(),0,"old theme template is not a personal project");
+     assert.equal(await page.locator('a[href="/projects/example-project/"]').count(),0,"example project must not be public");
     }
     if(device.name==="mobile"&&path==="/"){
      // mmzhiku intentionally hides the desktop Navbar below 768px.
