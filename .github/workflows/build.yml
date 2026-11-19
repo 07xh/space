@@ -27,3 +27,28 @@ jobs:
         run: pnpm check
       - name: Build theme
         run: CI_SKIP_REMOTE_FONTS=1 pnpm build
+      - name: Install browser smoke dependencies
+        run: |
+          npm install --prefix /tmp/space-playwright --no-save --no-audit playwright@1.56.1
+          /tmp/space-playwright/node_modules/.bin/playwright install --with-deps chromium
+      - name: Start compiled site preview
+        run: |
+          pnpm exec astro preview --host 127.0.0.1 --port 4321 > /tmp/space-preview.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:4321/ > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/space-preview.log
+          exit 1
+      - name: Desktop and mobile real-browser checks
+        env:
+          SPACE_PLAYWRIGHT_PATH: /tmp/space-playwright/node_modules/playwright
+          SPACE_PREVIEW_URL: http://127.0.0.1:4321
+        run: node tests/browser-smoke.cjs
+      - name: Publish visual snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: space-ui-snapshots
+          path: artifacts/ui-smoke/
+          if-no-files-found: ignore
