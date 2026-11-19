@@ -1,0 +1,38 @@
+---
+import {getCollection,render} from "astro:content";
+import MainGridLayout from "@/layouts/MainGridLayout.astro";
+import PageTitle from "@/components/common/PageTitle.astro";
+import Markdown from "@/components/common/Markdown.astro";
+export async function getStaticPaths(){
+ const entries=(await getCollection("projects",({data})=>!data.draft)).filter(p=>p.id!=="example-project");
+ return entries.map(project=>({params:{slug:project.id},props:{project}}));
+}
+const {project}=Astro.props;
+const {Content}=await render(project);
+const statuses={implemented:"已实现",verifying:"验证中",planned:"规划中"};
+const image=project.data.image;
+const validPublicImage=image.startsWith("/project-media/")||image.startsWith("/brand/");
+---
+<MainGridLayout title={project.data.title} description={project.data.description} hasOwnH1={true}>
+  <div class="card-base relative w-full px-4 py-7 md:px-9">
+    <div class="mb-6"><a href="/projects/" class="text-sm text-(--content-meta) hover:text-(--primary)">← 返回项目列表</a></div>
+    <PageTitle title={project.data.title} eyebrow="Projects" description={project.data.description} variant="stacked"/>
+    {validPublicImage && <img class="my-8 w-full max-h-100 object-contain rounded-xl" loading="lazy" decoding="async" src={image} alt={project.data.title+"界面截图"}/>}
+    {project.data.highlights.length>0 && <section class="mt-8 mb-10" aria-label="主要功能">
+      <h2 class="text-lg font-bold mb-4">主要功能</h2>
+      <div class="tools-card-grid">
+        {project.data.highlights.map(item=><div class="tools-card p-5">
+          <div class="flex items-center justify-between gap-4 mb-3">
+            <h3 class="font-bold text-(--deep-text)">{item.title}</h3>
+            <span class="shrink-0 text-xs text-(--content-meta)">{statuses[item.state]}</span>
+          </div>
+          <p class="tools-card-desc">{item.detail}</p>
+        </div>)}
+      </div>
+    </section>}
+    <Markdown class="mt-6"><Content /></Markdown>
+    {project.data.link.length>0 && <nav class="flex flex-wrap gap-3 mt-8" aria-label="项目外部链接">
+      {project.data.link.map(l=><a class="btn-regular text-sm" rel="noopener noreferrer" target="_blank" href={l.value}>{l.label} ↗</a>)}
+    </nav>}
+  </div>
+</MainGridLayout>

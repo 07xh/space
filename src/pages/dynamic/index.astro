@@ -1,0 +1,49 @@
+---
+import {getCollection, render} from "astro:content";
+import MainGridLayout from "@/layouts/MainGridLayout.astro";
+import PageTitle from "@/components/common/PageTitle.astro";
+import MomentCard from "@/components/moments/MomentCard.astro";
+import "@/styles/features/moments.css";
+// The rendering follows fqzlr's published MomentCard component and CSS,
+// replacing only its original author's hardcoded items with real 07xh Markdown.
+const entries=(await getCollection("dynamic")).sort((a,b)=>
+  Number(b.data.pinned)-Number(a.data.pinned)||
+  b.data.published.getTime()-a.data.published.getTime()
+);
+const cards=await Promise.all(entries.map(async e=>({
+  moment:{
+    id:"dynamic-"+e.id.replace(/[^a-zA-Z0-9_-]/g,"-"),
+    author:"07xh", avatar:"/brand/07xh-ship.svg",
+    published:e.data.published.toISOString(),pinned:e.data.pinned,
+    location:e.data.location,images:[],tags:[],body:e.body??""
+  },
+  Content:(await render(e)).Content
+})));
+---
+<MainGridLayout title="动态" description="开发与学习中的简短记录" hasOwnH1={true}>
+  <div class="moments-page card-base z-10 px-4 py-6 md:px-9 relative w-full">
+    <div class="mb-8">
+      <PageTitle title="动态" eyebrow="Moments" description="开发、学习和日常的简短记录" variant="stacked"/>
+    </div>
+    <div class="moments-body">
+      <div class="moments-timeline" id="moments-feed">
+        {cards.map(({moment,Content})=><MomentCard {moment}><Content /></MomentCard>)}
+      </div>
+    </div>
+  </div>
+</MainGridLayout>
+<style is:global>
+  /* Only bridge theme variables; keep fqzlr's full existing card CSS. */
+  .moments-page{
+    --moments-surface:var(--card-bg);
+    --moments-soft:var(--page-bg);
+    --moments-border:var(--line-divider);
+    --moments-border-width:1px;
+    --moments-radius-card:16px;
+    --moments-gap-card:14px;
+    --moments-padding-card:18px;
+    --moments-avatar-ring:var(--line-divider);
+    --text-primary:var(--deep-text);
+    --text-secondary:var(--content-meta);
+  }
+</style>

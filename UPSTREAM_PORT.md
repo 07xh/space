@@ -21,3 +21,6 @@ from the repository's software license.
 - `src/components/layout/HomeCompass.astro` + `src/styles/components/home-compass.css`: adapted from `fqzlr/fqzlr-bk` (MIT), retaining its CSS hover/nav layout; links only to enabled routes.
 
 - `/projects/`: adaptation of the original `MmzMing/my-blog` collections accordion and card markup, now populated by 07xh-owned project Markdown. No new card implementation.
+
+- `/dynamic/`: directly uses fqzlr-bk's MomentCard.astro and moments.css; the original hardcoded author and data are replaced by 07xh's Astro dynamic collection.
+- `/projects/[slug]/`: data-binding adaptation using original MmzMing MainGridLayout, PageTitle, Markdown, and tools card classes.
