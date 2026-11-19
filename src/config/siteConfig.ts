@@ -32,10 +32,10 @@ export const siteConfig: SiteConfig = {
 	// 站点关键词
 	keywords: [
 		"07xh",
-		"JAVA",
-		"AI",
+		"Python",
+		"开源软件",
 		"Astro",
-		"ACGN",
+		"工程制图",
 		"博客",
 		"技术博客",
 		"静态博客",
