@@ -41,3 +41,14 @@ Requires Node 22 and pnpm 9.14.4:
     pnpm check
     pnpm build
     pnpm dev
+
+## Validation gates
+
+GitHub Actions runs the original Astro type check and production build, then runs
+the ported site in Chromium at 1440px (desktop), 820px (tablet), and 390px (mobile).
+The tests cover native MobileDock expansion, project and moment content, original
+Fancybox gallery, legacy /posts/ redirect, primary public media, and layout overflow.
+
+The action uploads actual browser screenshots for inspection. A build passing alone
+does not guarantee full visual or device parity; keep the legacy Firefly site live
+until the new preview deployment has been reviewed.
