@@ -1,0 +1,44 @@
+name: Port original mmzhiku theme source
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/port-upstream.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  port:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout space
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Checkout original public theme
+        run: git clone --depth 1 --single-branch --branch master https://github.com/MmzMing/my-blog.git /tmp/space-upstream
+      - name: Checkout public 07xh content
+        run: git clone --depth 1 --single-branch --branch master https://github.com/07xh/Firefly.git /tmp/space-content
+      - name: Replace prototype with full upstream source
+        run: bash .github/scripts/port-upstream.sh
+      - name: Publish separate import branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c import/mmzhiku-original
+          git add -A
+          git commit -m "refactor: port original MIT-licensed mmzhiku theme and migrate own content"
+          git push origin HEAD:refs/heads/import/mmzhiku-original
+      - name: Install original theme dependencies
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.14.4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install and check real build
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run check
+          CI_SKIP_REMOTE_FONTS=1 pnpm run build
