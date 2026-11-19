@@ -1,5 +1,6 @@
 ---
 import { getCollection } from "astro:content";
+import { homeConfig } from "@/config";
 import "../../styles/components/home-ticker.css";
 
 type TickerItem = {
@@ -9,7 +10,7 @@ type TickerItem = {
 };
 
 const items: TickerItem[] = [
-	{ tag: "欢迎", content: "欢迎来到 07xh 的个人空间", sort: 100 },
+	{ tag: "欢迎", content: `欢迎来到${homeConfig.name}的个人空间`, sort: 100 },
 ];
 
 const threeDaysAgo = new Date();
