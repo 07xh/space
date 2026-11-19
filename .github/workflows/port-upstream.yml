@@ -1,5 +1,5 @@
 name: Port original mmzhiku theme source
-# Trigger after the migration script has been committed.
+# Rerun: removed restricted workflow edits from the import step.
 on:
   push:
     branches: [main]
