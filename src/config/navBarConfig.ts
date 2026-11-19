@@ -92,8 +92,10 @@ const buildNavBarConfig = (): NavBarConfig => {
 	// 5. 统一组装导航栏链接（顺序：主页 → 导航 → 文章 → 联系我 → 其他）
 	const links: (NavBarLink | LinkPreset)[] = [
 		LinkPreset.Home,
+		{ name: "项目", url: "/projects/", icon: "material-symbols:apps", activePathPrefixes: ["/projects/"] },
 		...(linksNav ? [linksNav] : []),
 		...(postsNav ? [postsNav] : []),
+		{ name: "动态", url: "/dynamic/", icon: "material-symbols:dynamic-feed", activePathPrefixes: ["/dynamic/"] },
 		...(contactNav ? [contactNav] : []),
 		...(myNav ? [myNav] : []),
 	];

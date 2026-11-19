@@ -3,6 +3,7 @@ import {getCollection,render} from "astro:content";
 import MainGridLayout from "@/layouts/MainGridLayout.astro";
 import PageTitle from "@/components/common/PageTitle.astro";
 import Markdown from "@/components/common/Markdown.astro";
+import "@/styles/collections.css";
 export async function getStaticPaths(){
  const entries=(await getCollection("projects",({data})=>!data.draft)).filter(p=>p.id!=="example-project");
  return entries.map(project=>({params:{slug:project.id},props:{project}}));
