@@ -249,6 +249,8 @@ test("private editor includes explicit draft/publish controls and compilable UI 
   try {
     const response = await editor({ request: request("/admin", token), env });
     assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-security-policy"), /img-src 'self' data: blob: https:/,
+      "Uploaded blob preview and existing HTTPS images must load");
     const html = await response.text();
     assert.match(html, /id="publish"/);
     assert.match(html, /id="check-deploy"/);
