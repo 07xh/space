@@ -97,9 +97,9 @@ export const homeConfig: HomeConfig = {
 			headline: {
 				title: "欢迎来到",
 				messages: ["夜路有星光", "岁岁皆欢愉", "所念皆星河", "版本无回滚"],
-				enterDuration: 1.1,
-				messageHold: 4.2,
-				messageFlipDuration: 1.1,
+				enterDuration: 0.8,
+				messageHold: 2.8,
+				messageFlipDuration: 0.75,
 			},
 		},
 		scenes: {

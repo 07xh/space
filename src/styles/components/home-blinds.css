@@ -9,6 +9,7 @@
 	margin-right: calc(50% - 50vw);
 	margin-left: calc(50% - 50vw);
 	isolation: isolate;
+	overflow: hidden;
 }
 
 .home-data-layer {
@@ -42,8 +43,13 @@
 	background: transparent;
 }
 
+.home-blinds-scenes {
+	position: absolute;
+	inset: 0;
+}
+
 .home-blinds__fixed-stage {
-	position: fixed;
+	position: absolute;
 	inset: 0;
 	z-index: 0;
 	/* 刻意不写 width / height：100vw 含纵向滚动条，会比真实视口宽出一截，

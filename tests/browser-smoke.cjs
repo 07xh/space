@@ -23,7 +23,7 @@ async function checkHeroAutoplay(browser){
  try{
   await page.goto(base+"/",{waitUntil:"domcontentloaded",timeout:60000});
   await page.waitForFunction(()=>document.querySelector("[data-home-hero]")?.dataset.heroMounted==="true"&&document.querySelector("[data-hero-mosaic-complete] img")?.complete&&document.fonts.status==="loaded",null,{timeout:20000});
-  await page.waitForTimeout(6000);
+  await page.waitForTimeout(3300);
   assert(!(await page.evaluate(isAssembled)),"hero should leave time to see the assembly and picture before the final cards");
   await page.waitForFunction(isAssembled,null,{timeout:20000});
   assert.equal(await page.evaluate(()=>window.scrollY),0,"hero must assemble without scrolling the page");
@@ -37,12 +37,16 @@ async function checkHeroAutoplay(browser){
   assert(await page.evaluate(isAssembled),"resizing must preserve the assembled picture");
   await page.screenshot({path:output+"/desktop-hero-autoplay.png",fullPage:false});
   await page.waitForFunction(()=>document.querySelector("#home-blinds")?.dataset.homeBlindsReady==="ready",null,{timeout:20000});
-  await page.evaluate(()=>window.scrollTo(0,document.querySelector("[data-home-blinds-scenes]").getBoundingClientRect().top+window.scrollY));
-  await page.waitForTimeout(3000);
+  const scrollToOpening=()=>window.scrollTo(0,document.querySelector("#home-blinds").getBoundingClientRect().top+window.scrollY);
+  await page.evaluate(scrollToOpening);
+  assert(await page.evaluate(()=>document.querySelector("#home-blinds").getBoundingClientRect().height<=innerHeight+2),"the complete lower animation must share one screen without empty scroll placeholders");
+  await page.waitForFunction(()=>[...document.querySelectorAll(".home-blinds-scene__image")].every(image=>image.complete),null,{timeout:20000});
+  await page.waitForFunction(()=>getComputedStyle(document.querySelector("[data-headline-window]")).visibility==="hidden"&&getComputedStyle(document.querySelector("[data-home-blinds-scene]")).visibility==="visible",null,{timeout:12000});
+  await page.waitForTimeout(1500);
   const scenePosition=()=>document.querySelector("[data-home-blinds-scene]").style.transform;
   const firstPosition=await page.evaluate(scenePosition);
   const stationaryScroll=await page.evaluate(()=>window.scrollY);
-  await page.waitForTimeout(7500);
+  await page.waitForTimeout(4500);
   assert.notEqual(await page.evaluate(scenePosition),firstPosition,"lower pictures should advance automatically without wheel input");
   assert.equal(await page.evaluate(()=>window.scrollY),stationaryScroll,"lower picture playback must not scroll the page");
   await page.evaluate(()=>window.scrollTo(0,0));
@@ -53,10 +57,11 @@ async function checkHeroAutoplay(browser){
   await page.route("**/assets/images/home-blinds/act2/4.webp",route=>route.abort());
   await page.reload({waitUntil:"domcontentloaded"});
   await page.waitForFunction(()=>document.querySelector("#home-blinds")?.dataset.homeBlindsReady==="ready",null,{timeout:20000});
-  await page.evaluate(()=>window.scrollTo(0,document.querySelector("[data-home-blinds-scenes]").getBoundingClientRect().top+window.scrollY));
-  await page.waitForTimeout(3000);
+  await page.evaluate(scrollToOpening);
+  await page.waitForFunction(()=>getComputedStyle(document.querySelector("[data-home-blinds-scene]")).visibility==="visible",null,{timeout:20000});
+  await page.waitForTimeout(1500);
   const positionWithFailedImage=await page.evaluate(scenePosition);
-  await page.waitForTimeout(7500);
+  await page.waitForTimeout(4500);
   assert.notEqual(await page.evaluate(scenePosition),positionWithFailedImage,"a failed later image must not freeze all the other pictures");
   assert.equal(errors.length,0,"Autoplay browser exceptions: "+errors.join(" | "));
  }finally{await context.close();}

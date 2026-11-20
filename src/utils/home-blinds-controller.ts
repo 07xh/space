@@ -40,38 +40,21 @@ type SetupContext = {
 	ScrollTrigger: ScrollTriggerPlugin;
 	config: HomeBlindsRuntimeConfig;
 	signal: AbortSignal;
-	/**
-	 * 入场标题的播放状态。setupReveal 比 setupHeadline 先建，但退场 scrub 需要
-	 * 知道「标题是否已入场」才能决定回滚锚定的目标值，故由 initializeHomeBlinds
-	 * 先建好这个共享对象，setupHeadline 在 play() 时置位。
-	 */
-	headlineState: { played: boolean };
 };
 
-/**
- * 固定舞台的可视阶段。
- * reveal = 全屏背景 + 磨砂玻璃；shrink = 全屏背景收缩成首幕图框；
- * scenes = 横向影像层；done = 影像层已滚过，舞台整体隐藏。
- * 视口缩放会触发 ScrollTrigger.refresh()，而 onEnter/onLeave 这类回调在
- * refresh 时不会补发，所以阶段必须能随时从滚动位置反推出来（见 resolvePhase）。
- */
-type StagePhase = "reveal" | "shrink" | "scenes" | "done";
+/** 播放阶段由同一条自动时间线推进，滚动只决定暂停与继续。 */
+type StagePhase = "reveal" | "shrink" | "scenes";
 
 const DESKTOP_MEDIA_QUERY = "(min-width: 769px)";
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
-const REVEAL_ENTER_END = 1 / 3;
-const REVEAL_EXIT_START = 2 / 3;
-/**
- * 背景视差行程中由入场补间承担的比例，余下部分交给揭示层的滚动进度推进，
- * 于是往下滑有跟随感、往回滚也有对应的回退。
- */
-const BACKGROUND_ENTER_SHARE = 2 / 3;
 /** 视差起始缩放：上下各留出 (1.18 - 1) / 2 = 9% 的位移余量，位移期间不露边 */
 const BACKGROUND_ENTER_SCALE = 1.18;
 /** 视差起始纵向位移（占背景盒高度百分比），必须小于起始缩放留出的余量 */
 const BACKGROUND_ENTER_TRAVEL_PERCENT = 7.5;
 /** 视差入场补间时长（秒） */
-const BACKGROUND_ENTER_DURATION = 1.8;
+const BACKGROUND_ENTER_DURATION = 1.1;
+const REVEAL_DURATION = 3.2;
+const SHRINK_DURATION = 1.15;
 /**
  * 留言墙入场的「Q弹」：卡面从这么小弹到原位，elastic 的过冲负责那一下回弹。
  * 错峰用随机起点，免得 12 颗气泡齐步走。
@@ -86,9 +69,9 @@ const BUBBLE_POP_EASE = "elastic.out(1, 0.42)";
  */
 const SCENE_ENTER_DISTANCE = 0.42;
 /** 自动影像的入场、阅读停留与切换分别计时，不再由滚轮速度决定。 */
-const SCENES_ENTER_DURATION = 2.2;
-const SCENE_HOLD_DURATION = 4.5;
-const SCENE_TRANSITION_DURATION = 1.8;
+const SCENES_ENTER_DURATION = 1.25;
+const SCENE_HOLD_DURATION = 2.8;
+const SCENE_TRANSITION_DURATION = 1.1;
 
 let activeRoot: HTMLElement | null = null;
 let activeCleanup: (() => void) | null = null;
@@ -250,7 +233,7 @@ function setupScenes(context: SetupContext) {
 		stage,
 		"[data-reveal-glass]",
 	);
-	// 入场标题同理：根节点的 autoAlpha 归 setupHeadline / setupReveal，这里只切窗口。
+	// 入场标题同理：根节点的 autoAlpha 归 setupHeadline，这里只切窗口。
 	const stageHeadlineWindow = selectRequired<HTMLElement>(
 		stage,
 		"[data-headline-window]",
@@ -331,10 +314,9 @@ function setupScenes(context: SetupContext) {
 	let resizeTimer: number | undefined;
 	let phase: StagePhase = "reveal";
 	let rootInView = false;
-	let shrinkTrigger: ScrollTriggerInstance | null = null;
 	let scenesTrigger: ScrollTriggerInstance | null = null;
 	let scenePlayback: GsapTimeline | null = null;
-	const playbackState = { intro: 0, scene: 0 };
+	const playbackState = { intro: 0, scene: 0, revealExit: 0 };
 	const sceneImages = cards.flatMap((card) =>
 		Array.from(
 			card.querySelectorAll<HTMLImageElement>(".home-blinds-scene__image"),
@@ -346,17 +328,8 @@ function setupScenes(context: SetupContext) {
 	let bubbleTransition: GsapTween | null = null;
 	let bubblePop: GsapTween | null = null;
 	let standTransition: GsapTween | null = null;
-	/**
-	 * 三组判据各管各的，混用会做出「退场段动画被掐掉」这类怪事：
-	 * - `isStageInView`：固定舞台（全屏背景与收缩门）该不该露出，滚过影像层就隐藏。
-	 * - `isLayerLive`：影像层本身还在屏幕上，**含横移结束后的退场段** —— 跑马灯、留言墙、
-	 *   图片列表、字幕入场与横移姿态都要继续跟着 section 一起离场，不能在 done 阶段停下。
-	 * - `loopsShouldRun`：在 `isLayerLive` 之上再让开后台标签页，只用于暂停无限循环。
-	 * 文档可见性不得参与显隐判断，否则页面被判定不可见时整块舞台会消失。
-	 */
-	const isStageInView = () => !signal.aborted && rootInView && phase !== "done";
-	const isLayerLive = () =>
-		!signal.aborted && rootInView && (phase === "scenes" || phase === "done");
+	const isStageInView = () => !signal.aborted && rootInView;
+	const isLayerLive = () => isStageInView() && phase === "scenes";
 	const loopsShouldRun = () =>
 		isLayerLive() && document.visibilityState === "visible";
 
@@ -454,7 +427,7 @@ function setupScenes(context: SetupContext) {
 	};
 
 	// 明信片入场：描边 SVG 就是明信片的边框本体（纸面不再画实线）。
-	// 进度完全由滚动距离驱动（renderIntro），不是自动播放的时间线；
+	// 进度由自动时间线驱动 renderIntro；
 	// 错峰 + 跨度恰好收在 intro=1，最后一幕画满时整条线正好闭合
 	const CARD_INTRO_SHARE = 0.8;
 	const CARD_INTRO_STAGGER = 0.05;
@@ -467,7 +440,7 @@ function setupScenes(context: SetupContext) {
 		clamp((intro - index * CARD_INTRO_STAGGER) / CARD_INTRO_SHARE, 0, 1);
 
 	/**
-	 * 影像层入场（滚动进度驱动）：跑马灯沿各自轴向描线展开。
+	 * 影像层入场（时间线驱动）：跑马灯沿各自轴向描线展开。
 	 * 首幕是收缩门的接收者：图片原地不动，只有纸面背景渐入 + 描边绕一圈；
 	 * 其余幕纸面早已就位，卡面本体错峰滑入淡入。往回滚时整段动画按来路退回。
 	 */
@@ -584,7 +557,12 @@ function setupScenes(context: SetupContext) {
 				image.complete &&
 				(image.naturalWidth > 0 || failedSceneImages.has(image)),
 		);
-		scenePlayback?.paused(!loopsRun || !imagesReady);
+		scenePlayback?.paused(
+			!rootInView ||
+				!scenesTrigger?.isActive ||
+				document.visibilityState !== "visible" ||
+				!imagesReady,
+		);
 		// 跑马灯的入退场由滚动进度/收线时间线自己推进，这里只停它的无限循环。
 		// 跑马灯循环、留言墙和图片轨道额外让开后台标签页；退场段仍随 section 离场。
 		marquee.setPaused(!loopsRun);
@@ -680,21 +658,17 @@ function setupScenes(context: SetupContext) {
 
 	function applyPhase() {
 		gsap.set(stage, { autoAlpha: isStageInView() ? 1 : 0 });
-		// 背景、磨砂玻璃与标题窗口放在同一次 set 里：揭示层三者同帧进出，
-		// 拆成两次写就会有一帧玻璃还没压住背景的闪跳
-		gsap.set([stageBackground, stageRevealGlass, stageHeadlineWindow], {
-			autoAlpha: phase === "reveal" ? 1 : 0,
+		gsap.set(stageBackground, { autoAlpha: phase === "reveal" ? 1 : 0 });
+		gsap.set([stageRevealGlass, stageHeadlineWindow], {
+			autoAlpha: phase === "reveal" ? 1 - playbackState.revealExit : 0,
 		});
 		gsap.set(portal, { autoAlpha: phase === "shrink" ? 1 : 0 });
 	}
 
-	/** 只依赖滚动位置，因此 refresh 之后也能得到正确阶段 */
 	function resolvePhase(): StagePhase {
-		if (!scenesTrigger || !shrinkTrigger) return "reveal";
-		const scroll = window.scrollY;
-		if (scroll >= scenesTrigger.end) return "done";
-		if (scroll >= scenesTrigger.start) return "scenes";
-		if (scroll >= shrinkTrigger.start) return "shrink";
+		const time = scenePlayback?.time() ?? 0;
+		if (time >= REVEAL_DURATION + SHRINK_DURATION) return "scenes";
+		if (time >= REVEAL_DURATION) return "shrink";
 		return "reveal";
 	}
 
@@ -709,11 +683,7 @@ function setupScenes(context: SetupContext) {
 			// 横向隐藏的下一幕不能依赖原生 lazy 的几何判断。
 			for (const image of sceneImages) image.loading = "eager";
 		}
-		renderScenes(
-			playbackState.scene,
-			phase === "scenes" || phase === "done",
-			playbackState.intro,
-		);
+		renderScenes(playbackState.scene, phase === "scenes", playbackState.intro);
 		syncAnimationPlayback();
 	}
 
@@ -734,23 +704,12 @@ function setupScenes(context: SetupContext) {
 	});
 	for (const scene of scenes) hideSceneChrome(gsap, scene);
 
-	const shrinkTimeline = gsap.timeline({
-		scrollTrigger: {
-			id: "home-blinds-scenes-shrink",
-			trigger: section,
-			start: "top 66.666%",
-			end: "top top",
-			scrub: 0.4,
-			invalidateOnRefresh: true,
-			onToggle: syncStage,
-		},
-	});
-	shrinkTrigger = shrinkTimeline.scrollTrigger ?? null;
+	const shrinkTimeline = gsap.timeline({ paused: true });
 
 	// 全屏背景 → 首幕 4:3 图框，全程不碰布局属性：portal 用 clip-path 把可视窗口
 	// 从满屏收到图框（只触发 paint），内部图片同步做等比 scale（走合成），
 	// 终点与 .home-blinds-scene__frame 完全重合。
-	// 这条时间线开了 invalidateOnRefresh，用 fromTo 显式写出起始值，
+	// 收缩用 fromTo 显式写出起始值，
 	// 缩放窗口后重新记录的起点才不会被当前已渲染的终点状态污染。
 	shrinkTimeline
 		.fromTo(
@@ -798,8 +757,32 @@ function setupScenes(context: SetupContext) {
 			0,
 		);
 
+	gsap.set(stageBackground, {
+		scale: BACKGROUND_ENTER_SCALE,
+		yPercent: BACKGROUND_ENTER_TRAVEL_PERCENT,
+	});
 	scenePlayback = gsap.timeline({ paused: true, onUpdate: syncStage });
 	scenePlayback
+		.to(
+			stageBackground,
+			{
+				scale: 1,
+				yPercent: 0,
+				duration: BACKGROUND_ENTER_DURATION,
+				ease: "power3.out",
+			},
+			0,
+		)
+		.to(playbackState, { revealExit: 1, duration: 0.5 }, REVEAL_DURATION - 0.5)
+		.to(
+			shrinkTimeline,
+			{
+				time: shrinkTimeline.duration(),
+				duration: SHRINK_DURATION,
+				ease: "none",
+			},
+			REVEAL_DURATION,
+		)
 		.to(playbackState, {
 			intro: 1,
 			duration: SCENES_ENTER_DURATION,
@@ -818,8 +801,8 @@ function setupScenes(context: SetupContext) {
 	// 只观察区域进出；不锁住页面，也不把滚动位置写入画面进度。
 	scenesTrigger = ScrollTrigger.create({
 		id: "home-blinds-scenes-playback",
-		trigger: section,
-		start: "top top",
+		trigger: root,
+		start: "top 66.666%",
 		end: "bottom top",
 		invalidateOnRefresh: true,
 		onToggle: syncStage,
@@ -863,6 +846,8 @@ function setupScenes(context: SetupContext) {
 	const handleRefresh = () => {
 		rootInView = rootTrigger.isActive;
 		measureScene();
+		const shrinkTime = shrinkTimeline.time();
+		shrinkTimeline.invalidate().time(shrinkTime);
 		marquee.refresh();
 		syncStage();
 	};
@@ -920,146 +905,11 @@ function setupScenes(context: SetupContext) {
 			stageRevealGlass,
 			stageHeadlineWindow,
 		]);
+		gsap.set(stageBackground, { clearProps: "transform" });
 		rootTrigger.kill();
 		scenesTrigger?.kill();
-		shrinkTrigger?.kill();
 		shrinkTimeline.kill();
 		gsap.set(stage, { autoAlpha: 0 });
-	};
-}
-
-/**
- * 揭示层：背景视差与入场标题的退场。
- * 视差行程分两笔——入场补间先播掉前 2/3，剩下的 1/3 交给揭示层的滚动进度推进，
- * 于是往下滑有跟随感、往回滚也有对应的回退，滚到 REVEAL_ENTER_END 即全部到位。
- * 两个来源各写各的标量，transform 只由 renderBackground 一处写入，
- * 补间与 scrub 不会互相抢属性。
- */
-function setupReveal(context: SetupContext) {
-	const { root, gsap, ScrollTrigger } = context;
-	const section = selectRequired<HTMLElement>(
-		root,
-		"[data-home-blinds-reveal]",
-	);
-	const stageBackground = selectRequired<HTMLImageElement>(
-		root,
-		"[data-blinds-background]",
-	);
-	const headline = selectRequired<HTMLElement>(root, "[data-blinds-headline]");
-
-	const travel = { entrance: 0, scroll: 0 };
-	let entranceTween: GsapTween | null = null;
-	let entranceTrigger: ScrollTriggerInstance | null = null;
-
-	/** 行程 0 = 起始位（放大且偏下），1 = 落定位（恒等变换，与过渡层逐像素对齐） */
-	const renderBackground = () => {
-		const remain =
-			1 -
-			clamp(
-				travel.entrance * BACKGROUND_ENTER_SHARE +
-					travel.scroll * (1 - BACKGROUND_ENTER_SHARE),
-				0,
-				1,
-			);
-		gsap.set(stageBackground, {
-			scale: 1 + (BACKGROUND_ENTER_SCALE - 1) * remain,
-			yPercent: BACKGROUND_ENTER_TRAVEL_PERCENT * remain,
-		});
-	};
-
-	/** 判定入场走完：补间与触发器一并拆掉，重复调用无副作用 */
-	const finishEntrance = () => {
-		entranceTween?.kill();
-		entranceTween = null;
-		entranceTrigger?.kill();
-		entranceTrigger = null;
-		if (travel.entrance === 1) return;
-		travel.entrance = 1;
-		renderBackground();
-	};
-
-	/** 滚动来源：进度 0 → REVEAL_ENTER_END 走完剩下的 1/3 行程 */
-	const syncBackgroundTravel = (progress: number) => {
-		travel.scroll = clamp(progress / REVEAL_ENTER_END, 0, 1);
-		// 滚到揭示层末尾就要与过渡层交接，此刻背景必须正好落在恒等位。
-		// 入场补间还没走完就当场判定到位，否则会闪出一格残余位移
-		if (progress >= 0.999) finishEntrance();
-		renderBackground();
-	};
-
-	// 舞台刚进视口即起播入场，与 applyPhase 露出背景是同一时刻。
-	// 不用 once：从别页恢复坐标时触发器一建好就已越过起点，那种情况靠 onRefresh 兜底。
-	entranceTrigger = ScrollTrigger.create({
-		id: "home-blinds-background-entrance",
-		trigger: section,
-		start: "top bottom",
-		onEnter: () => {
-			entranceTween = gsap.to(travel, {
-				entrance: 1,
-				duration: BACKGROUND_ENTER_DURATION,
-				ease: "power3.out",
-				onUpdate: renderBackground,
-			});
-		},
-		onRefresh: (self) => {
-			// 挂载点已落在揭示层之内：入场直接到位，不补那 2/3 行程，免得背景凭空跳一次。
-			// 补间已在跑时不插手，交给它自己走完，否则一次 refresh 就把入场掐成跳变
-			if (self.progress > 0 && !entranceTween) finishEntrance();
-		},
-	});
-	const revealTimeline = gsap.timeline({
-		scrollTrigger: {
-			id: "home-blinds-reveal",
-			trigger: section,
-			start: "top 66.666%",
-			end: "bottom 66.666%",
-			scrub: 0.35,
-			invalidateOnRefresh: true,
-			// 从别的页面深处跳入首页时，标题退场补间的初次渲染就落在终点态，
-			// 之后回滚到退场区间之下时 GSAP 不会再补渲染它的起点，常驻标题
-			// 因此一直隐身；relayout()/fonts.ready 的 reset() 也可能把根节点
-			// 打回隐藏。只要已入场且滚动位于退场区间之下，这里显式把标题锚回
-			// 可见态，退场交给上面的 fromTo 在区间内正常接管。
-			onUpdate: (self) => {
-				if (self.progress < REVEAL_EXIT_START && context.headlineState.played) {
-					gsap.set(headline, { yPercent: 0, autoAlpha: 1 });
-				}
-				syncBackgroundTravel(self.progress);
-			},
-			// refresh 不补发 onUpdate，视差得自己按新进度重算一遍
-			onRefresh: (self) => syncBackgroundTravel(self.progress),
-		},
-	});
-
-	// 入场标题不做 scrub 进场（它有自己的入场时间线），只在这里跟着揭示层一起滑出。
-	// 它的 autoAlpha 只由这条 scrub 时间线写入，refresh 时会按进度重新渲染，
-	// 因此滚过揭示层后缩放窗口不会让它重新出现。
-	revealTimeline.fromTo(
-		headline,
-		{ yPercent: 0, autoAlpha: 1 },
-		{
-			yPercent: -38,
-			autoAlpha: 0,
-			duration: 1 - REVEAL_EXIT_START,
-			ease: "power3.in",
-			immediateRender: false,
-		},
-		REVEAL_EXIT_START,
-	);
-
-	// scrub 时间线建好之后才读得到当前进度：初次挂载按现有位置锚定一次视差，
-	// 免得从别的页面深处跳进首页时背景停在起始位移上
-	syncBackgroundTravel(revealTimeline.scrollTrigger?.progress ?? 0);
-
-	return () => {
-		entranceTween?.kill();
-		entranceTrigger?.kill();
-		gsap.killTweensOf([headline]);
-		// 背景 transform 的唯一写入点在此，退场后清成无内联变换，
-		// 下一次挂载从恒等位重新起算
-		gsap.set(stageBackground, { clearProps: "transform" });
-		revealTimeline.scrollTrigger?.kill();
-		revealTimeline.kill();
 	};
 }
 
@@ -1071,7 +921,7 @@ function setupReveal(context: SetupContext) {
  * ③ 长条在竖线位置原地缩没；中央刻度环自小放大转正，
  *    中缝横线带方块自中间往两侧摊开；
  * ④ 长条快缩没时两侧竖线就位并纵向长出；
- * ⑤ 落定后标题上移，第二层祝福语逐字翻入并循环。退场交给 setupReveal 的 scrub 时间线。
+ * ⑤ 落定后标题上移，第二层祝福语逐字翻入并循环。退场交给自动播放时间线。
  */
 function setupHeadline(context: SetupContext) {
 	const { root, gsap, ScrollTrigger, config, signal } = context;
@@ -1257,7 +1107,7 @@ function setupHeadline(context: SetupContext) {
 
 	/**
 	 * 播完后遇到视口变化时直接落到终态重新对齐。
-	 * 根节点的 autoAlpha / yPercent 归入场时间线与 setupReveal 的退场段所有，
+	 * 根节点的 autoAlpha / yPercent 归入场时间线所有，
 	 * 这里一律不碰，否则滚过退场段再缩放窗口会把标题重新亮出来。
 	 */
 	const settle = () => {
@@ -1290,7 +1140,6 @@ function setupHeadline(context: SetupContext) {
 	const play = () => {
 		if (played) return;
 		played = true;
-		context.headlineState.played = true;
 		const { openScale, blockScale, blockShift, stopShift, titleY, stackY } =
 			measure();
 		const span = enterSpan;
@@ -1517,7 +1366,6 @@ async function initializeHomeBlinds(root: HTMLElement, generation: number) {
 		ScrollTrigger,
 		config,
 		signal: abortController.signal,
-		headlineState: { played: false },
 	};
 
 	/**
@@ -1534,7 +1382,6 @@ async function initializeHomeBlinds(root: HTMLElement, generation: number) {
 	};
 
 	try {
-		cleanups.push(setupReveal(context));
 		cleanups.push(setupHeadline(context));
 		cleanups.push(setupScenes(context));
 		cleanups.push(setupStageImages(context));
