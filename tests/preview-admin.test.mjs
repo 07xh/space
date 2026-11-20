@@ -7,6 +7,7 @@ import {
 } from "../src/lib/preview-admin-auth.js";
 import { onRequest as api } from "../functions/api/admin/content.js";
 import { onRequestGet as editor } from "../functions/admin.js";
+import { onRequestPost as upload } from "../functions/api/admin/upload.js";
 
 const origin = "https://07xh-space-preview.pages.dev";
 const env = {
@@ -144,6 +145,55 @@ test("verified admin can list, create and read only allowlisted content paths", 
     assert(calls.every((call) => call.url.includes("cloudflareaccess.com") ||
       call.url.includes("/repos/07xh/space/")));
     assert(calls.some((call) => call.method === "PUT"));
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+
+test("preview image upload blocks spoofed formats and writes valid PNG only to new repo", async () => {
+  const { token, jwk } = await makeAccessToken();
+  const original = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url: String(url), options });
+    if (String(url).endsWith("/cdn-cgi/access/certs")) return Response.json({ keys: [jwk] });
+    assert.equal(String(url).startsWith("https://api.github.com/repos/07xh/space/contents/public/uploads/"), true);
+    assert.equal(options.method, "PUT");
+    const json = JSON.parse(options.body);
+    assert.equal(json.branch, "main");
+    assert(json.content.startsWith("iVBORw0KGgo="), "PNG binary must be base64-encoded");
+    return Response.json({ content: { sha: "a".repeat(40) }, commit: { sha: "b".repeat(40) } }, { status: 201 });
+  };
+  async function send(file, actualOrigin = origin) {
+    const body = new FormData();
+    body.set("file", file);
+    return upload({
+      request: new Request(origin + "/api/admin/upload", {
+        method: "POST", body,
+        headers: {
+          Origin: actualOrigin,
+          "X-Requested-With": "Space-Admin",
+          "Cf-Access-Jwt-Assertion": token,
+        },
+      }), env,
+    });
+  }
+  try {
+    const badType = await send(new File(["<svg/>"], "x.svg", { type: "image/svg+xml" }));
+    assert.equal(badType.status, 415);
+    const badSignature = await send(new File(["bad image"], "fake.png", { type: "image/png" }));
+    assert.equal(badSignature.status, 415);
+    const wrongOrigin = await send(new File(["x"], "x.png", { type: "image/png" }), "https://other.example");
+    assert.equal(wrongOrigin.status, 403);
+    assert.equal(calls.filter((call) => call.url.includes("api.github.com")).length, 0);
+
+    const png = new File([Uint8Array.from([137,80,78,71,13,10,26,10])], "real.png", { type: "image/png" });
+    const result = await send(png);
+    assert.equal(result.status, 201);
+    const payload = await result.json();
+    assert.match(payload.imageUrl, /^\/uploads\/\d{8}-[a-f0-9]{12}\.png$/);
+    assert.equal(calls.filter((call) => call.url.includes("api.github.com")).length, 1);
   } finally {
     globalThis.fetch = original;
   }
