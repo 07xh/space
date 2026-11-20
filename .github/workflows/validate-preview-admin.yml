@@ -25,6 +25,7 @@ jobs:
         run: |
           node --check functions/admin.js
           node --check functions/api/admin/content.js
+          node --check functions/api/admin/upload.js
           node --check src/lib/preview-admin-auth.js
       - name: Verify authorization and GitHub publishing gates
         run: node --test tests/preview-admin.test.mjs
