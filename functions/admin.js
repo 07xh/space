@@ -54,6 +54,7 @@ const HTML = String.raw`<!doctype html>
   </section>
   <section aria-label="内容编辑">
     <h2>Markdown 编辑</h2>
+    <p id="publish-state" class="hint" aria-live="polite">当前状态：未打开内容</p>
     <label for="filename">当前文件路径</label>
     <input id="filename" readonly placeholder="先选择文件或新建">
     <label for="editor">Frontmatter 与 Markdown</label>
@@ -62,7 +63,8 @@ const HTML = String.raw`<!doctype html>
     <input id="image-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" aria-label="选择图片">
     <div class="toolbar">
       <button id="upload" type="button">上传图片并插入 Markdown</button>
-      <button class="primary" id="save" type="button">保存至预览仓库</button>
+      <button id="save" type="button">保存修改</button>
+      <button class="primary" id="publish" type="button">发布到预览站</button>
       <button class="danger" id="delete" type="button">删除当前文件</button>
     </div>
     <p id="status" role="status" aria-live="polite">已加载编辑器。后台 API 通过 Cloudflare Access 身份验证。</p>
@@ -77,16 +79,34 @@ const HTML = String.raw`<!doctype html>
   const filename = get("filename");
   const editor = get("editor");
   const status = get("status");
+  const publishState = get("publish-state");
   let sha = "";
   let isNew = false;
   let isBusy = false;
+  function draftStatus(text) {
+    const metadata = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!metadata) return "无有效 Frontmatter";
+    return /^draft:\s*true\s*$/m.test(metadata[1]) ? "草稿（不公开）" : "已公开（保存会更新预览站）";
+  }
+  function showState() {
+    publishState.textContent = "当前状态：" + (filename.value ? draftStatus(editor.value) : "未选择内容");
+  }
+  function setDraft(text, isDraft) {
+    const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (!match) throw new Error("缺少合法 Frontmatter，无法发布。");
+    const draftLine = "draft: " + String(isDraft);
+    const front = /^draft:\s*(?:true|false)\s*$/m.test(match[1])
+      ? match[1].replace(/^draft:\s*(?:true|false)\s*$/m, draftLine)
+      : match[1] + "\n" + draftLine;
+    return text.replace(match[0], "---\n" + front + "\n---");
+  }
   function info(message, isError = false) {
     status.textContent = message;
     status.dataset.error = String(isError);
   }
   function busy(next) {
     isBusy = next;
-    for (const id of ["kind","files","refresh","new","load","save","delete","upload","image-file"]) get(id).disabled = next;
+    for (const id of ["kind","files","refresh","new","load","save","publish","delete","upload","image-file"]) get(id).disabled = next;
   }
   async function request(method, path, body) {
     const options = { method, credentials: "same-origin", headers: { "X-Requested-With": "Space-Admin" } };
@@ -123,6 +143,7 @@ const HTML = String.raw`<!doctype html>
       editor.value = result.content;
       sha = result.sha;
       isNew = false;
+      showState();
       info("已打开 " + result.path + "；当前版本已记录，保存会检查并发修改。");
     } catch (error) { info(error.message, true); }
     finally { busy(false); }
@@ -141,22 +162,36 @@ const HTML = String.raw`<!doctype html>
     editor.value = kind.value === "posts"
       ? "---\ntitle: \"新文章\"\npublished: " + today +
         "\ndescription: \"\"\ndraft: true\ncategory: \"\"\ntags: []\n---\n\n在这里编写正文。\n"
-      : "---\npublished: " + today + "\npinned: false\n---\n\n在这里编写动态。\n";
+      : "---\npublished: " + today + "\ndraft: true\npinned: false\n---\n\n在这里编写动态。\n";
     sha = "";
     isNew = true;
+    showState();
     info("已创建本地草稿，尚未写入 GitHub；保存后才会触发预览站部署。");
   }
-  async function save() {
+  async function save(publish = false) {
     if (isBusy || !filename.value) return info("请先打开文件或新建草稿。", true);
+    let content;
+    try { content = publish ? setDraft(editor.value, false) : editor.value; }
+    catch (error) { return info(error.message, true); }
+    const publicNow = draftStatus(content).startsWith("已公开");
+    if (publish) {
+      if (!confirm("确认将此内容公开发布到独立预览站？保存后会提交 GitHub 并触发部署。")) return;
+    } else if (publicNow) {
+      if (!confirm("此内容已公开。保存修改会更新预览站上的公开内容，确定继续？")) return;
+    }
     const method = isNew ? "POST" : "PUT";
     busy(true);
     try {
-      const body = { kind: kind.value, path: filename.value, content: editor.value };
+      const body = { kind: kind.value, path: filename.value, content };
       if (!isNew) body.sha = sha;
       const result = await request(method, "", body);
+      editor.value = content;
       isNew = false;
       sha = result.sha || "";
-      info("已提交 GitHub：" + (result.commit || "成功") + "。预览站仍需等待自动部署完成。");
+      showState();
+      info("已提交 GitHub：" + (result.commit || "成功") +
+        "。当前是" + (publicNow ? "公开内容" : "草稿") +
+        "；预览站仍需等待自动部署完成。");
       const current = filename.value;
       await request("GET").then((data) => {
         files.replaceChildren();
@@ -200,19 +235,23 @@ const HTML = String.raw`<!doctype html>
       filename.value = "";
       editor.value = "";
       sha = "";
+      showState();
       info("已提交删除：" + (result.commit || "成功") + "。");
     } catch (error) { info(error.message, true); }
     finally { busy(false); }
     await refresh();
   }
+  editor.addEventListener("input", showState);
   get("refresh").addEventListener("click", refresh);
   get("new").addEventListener("click", create);
   get("load").addEventListener("click", load);
   get("upload").addEventListener("click", upload);
-  get("save").addEventListener("click", save);
+  get("save").addEventListener("click", () => save(false));
+  get("publish").addEventListener("click", () => save(true));
   get("delete").addEventListener("click", remove);
   kind.addEventListener("change", () => {
     sha = ""; isNew = false; filename.value = ""; editor.value = "";
+    showState();
     refresh();
   });
   refresh();
