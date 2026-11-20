@@ -5,7 +5,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const postsDir = join(repoRoot, "src", "content", "posts");
+const contentDirectories = ["posts", "dynamic"].map((name) => join(repoRoot, "src", "content", name));
 const imageExtension = /\.(?:svg|png|jpe?g|webp|gif|avif|apng|bmp|ico)$/i;
 
 function walk(directory) {
@@ -62,12 +62,17 @@ function localPath(documentPath, reference) {
   return target;
 }
 
-const documents = walk(postsDir);
+const documents = contentDirectories.flatMap(walk);
 const missing = [];
 let checked = 0;
+const externalImages = new Set();
 for (const documentPath of documents) {
   const content = withoutCodeBlocks(readFileSync(documentPath, "utf8"));
   for (const reference of referencedMedia(content)) {
+    if (/^https?:\/\//i.test(reference) && imageExtension.test(reference.split(/[?#]/, 1)[0])) {
+      externalImages.add(reference);
+      continue;
+    }
     let target;
     try { target = localPath(documentPath, reference); }
     catch (error) {
@@ -85,5 +90,39 @@ if (missing.length) {
   console.error(`Missing ${missing.length} local blog image reference(s):\n${missing.join("\n")}\n`);
   process.exitCode = 1;
 } else {
-  console.log(`Blog media OK: ${documents.length} articles, ${checked} local image references checked.`);
+  console.log(`Blog media OK: ${documents.length} content files, ${checked} local image references checked, ${externalImages.size} external image URLs cataloged.`);
+}
+
+// Remote checks are opt-in and diagnostic: anti-hotlinking and temporary 403/502 errors
+// must not block publication or be misreported as conclusive missing files.
+if (process.argv.includes("--remote") && externalImages.size) {
+  const urls = [...externalImages].sort();
+  let verified = 0;
+  let uncertain = 0;
+  for (let i = 0; i < urls.length; i += 3) {
+    const batch = urls.slice(i, i + 3);
+    const observations = await Promise.all(batch.map(async (url) => {
+      try {
+        let response = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(8500) });
+        if ([403, 405].includes(response.status)) {
+          response = await fetch(url, {
+            method: "GET",
+            headers: { Range: "bytes=0-0" },
+            signal: AbortSignal.timeout(8500),
+          });
+          if (response.body) await response.body.cancel();
+        }
+        const image = (response.headers.get("content-type") || "").toLowerCase().startsWith("image/");
+        return { url, ok: response.ok && image, status: "HTTP " + response.status };
+      } catch (error) {
+        return { url, ok: false, status: error?.name || "Network error" };
+      }
+    }));
+    for (const observation of observations) {
+      if (observation.ok) verified++;
+      else uncertain++;
+      console.log(`[${observation.ok ? "reachable" : "unverified"}] ${observation.status} ${observation.url}`);
+    }
+  }
+  console.log(`Remote media observation: ${verified} reachable, ${uncertain} unverified. Remote failures do not fail the build.`);
 }
