@@ -81,6 +81,7 @@ const HTML = String.raw`<!doctype html>
       <button id="upload" type="button">上传图片并插入 Markdown</button>
       <button id="save" type="button">保存修改</button>
       <button class="primary" id="publish" type="button">发布到预览站</button>
+      <button id="unpublish" type="button" hidden>撤回公开，改为草稿</button>
       <button class="danger" id="delete" type="button">删除当前文件</button>
     </div>
     <p id="status" role="status" aria-live="polite">已加载编辑器。后台 API 通过 Cloudflare Access 身份验证。</p>
@@ -135,13 +136,22 @@ const HTML = String.raw`<!doctype html>
     return /^draft:\s*true\s*$/m.test(metadata[1]) ? "草稿（不公开）" : "已公开（保存会更新预览站）";
   }
   function showState() {
-    publishState.textContent = "当前状态：" + (filename.value ? draftStatus(editor.value) : "未选择内容");
+    const state = filename.value ? draftStatus(editor.value) : "未选择内容";
+    publishState.textContent = "当前状态：" + state;
+    get("unpublish").hidden = !filename.value || isNew || !state.startsWith("已公开");
     if (previewOpen) renderPreview();
   }
   function insertFormat(type) {
     if (isBusy || !filename.value) return info("请先新建或打开文章。", true);
     if (previewOpen) togglePreview();
-    const start = editor.selectionStart, end = editor.selectionEnd;
+    let start = editor.selectionStart, end = editor.selectionEnd;
+    // Toolbar actions must never overwrite YAML metadata. When the caret is
+    // inside frontmatter, insert at the start of the Markdown body instead.
+    const metadata = editor.value.match(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/);
+    if (metadata && start < metadata[0].length) {
+      start = end = metadata[0].length;
+      editor.setSelectionRange(start, end);
+    }
     const selected = editor.value.slice(start, end);
     let replacement;
     if (type === "bold") replacement = "**" + (selected || "加粗文字") + "**";
@@ -304,7 +314,7 @@ const HTML = String.raw`<!doctype html>
   }
   function busy(next) {
     isBusy = next;
-    for (const id of ["kind","files","refresh","new","load","save","publish","delete","upload","image-file","check-deploy","editor","toggle-preview"]) get(id).disabled = next;
+    for (const id of ["kind","files","refresh","new","load","save","publish","unpublish","delete","upload","image-file","check-deploy","editor","toggle-preview"]) get(id).disabled = next;
   }
   async function request(method, path, body) {
     const options = { method, credentials: "same-origin", headers: { "X-Requested-With": "Space-Admin" } };
@@ -377,14 +387,23 @@ const HTML = String.raw`<!doctype html>
     showState();
     info("已创建本地草稿，尚未写入 GitHub；保存后才会触发预览站部署。");
   }
-  async function save(publish = false) {
+  async function save(mode = "keep") {
     if (isBusy || !filename.value) return info("请先打开文件或新建草稿。", true);
+    const publish = mode === "publish";
+    const unpublish = mode === "unpublish";
+    if (unpublish && (isNew || !draftStatus(editor.value).startsWith("已公开"))) {
+      return info("当前文件尚未公开，无需撤回。", true);
+    }
     let content;
-    try { content = publish ? setDraft(editor.value, false) : editor.value; }
-    catch (error) { return info(error.message, true); }
+    try {
+      content = publish ? setDraft(editor.value, false)
+        : unpublish ? setDraft(editor.value, true) : editor.value;
+    } catch (error) { return info(error.message, true); }
     const publicNow = draftStatus(content).startsWith("已公开");
     if (publish) {
       if (!confirm("确认将此内容公开发布到独立预览站？保存后会提交 GitHub 并触发部署。")) return;
+    } else if (unpublish) {
+      if (!confirm("确认撤回公开内容？GitHub 提交并部署完成后，访客将无法继续从新站查看它。")) return;
     } else if (publicNow) {
       if (!confirm("此内容已公开。保存修改会更新预览站上的公开内容，确定继续？")) return;
     }
@@ -401,8 +420,8 @@ const HTML = String.raw`<!doctype html>
       trackCommit(result.commit, publicNow);
       showState();
       info("已提交 GitHub：" + (result.commit || "成功") +
-        "。当前是" + (publicNow ? "公开内容" : "草稿") +
-        "；预览站仍需等待自动部署完成。");
+        "。" + (unpublish ? "撤回公开已提交，" : "当前是" + (publicNow ? "公开内容" : "草稿") + "，") +
+        "预览站仍需等待自动部署完成。");
       const current = filename.value;
       try {
         const data = await request("GET");
@@ -490,8 +509,15 @@ const HTML = String.raw`<!doctype html>
   get("new").addEventListener("click", create);
   get("load").addEventListener("click", load);
   get("upload").addEventListener("click", upload);
-  get("save").addEventListener("click", () => save(false));
-  get("publish").addEventListener("click", () => save(true));
+  get("save").addEventListener("click", () => save("keep"));
+  get("publish").addEventListener("click", () => save("publish"));
+  get("unpublish").addEventListener("click", () => save("unpublish"));
+  editor.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      if (!isBusy && filename.value) save("keep");
+    }
+  });
   get("delete").addEventListener("click", remove);
   kind.addEventListener("change", () => {
     if (!confirmDiscard()) {
