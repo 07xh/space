@@ -7,6 +7,7 @@
 		"start": "astro dev",
 		"check": "astro check",
 		"check:post-media": "node scripts/check-post-media.mjs",
+		"check:external-media": "node scripts/check-post-media.mjs --remote",
 		"build": "node scripts/check-post-media.mjs && node scripts/generate-icons.js && tsx scripts/generate-lqips.ts && astro build && pagefind --site dist && node scripts/prune-unused-assets.js",
 		"preview": "astro preview",
 		"astro": "astro",
