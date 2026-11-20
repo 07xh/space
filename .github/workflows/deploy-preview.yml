@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 30
     env:
       SPACE_SITE_URL: https://07xh-space-preview.pages.dev
+      SPACE_WALINE_SERVER_URL: ${{ vars.SPACE_WALINE_SERVER_URL }}
       CI_SKIP_REMOTE_FONTS: '1'
     steps:
       - uses: actions/checkout@v4
