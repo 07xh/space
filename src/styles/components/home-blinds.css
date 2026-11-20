@@ -1027,6 +1027,8 @@
 /* 照片不单独描边，边框由明信片纸面承担 */
 .home-blinds-scene__frame {
 	position: relative;
+	display: block;
+	pointer-events: auto;
 	z-index: 1;
 	flex: none;
 	width: 100%;

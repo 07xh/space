@@ -35,6 +35,8 @@ async function checkHeroAutoplay(browser){
   await page.setViewportSize({width:1280,height:800});
   await page.waitForTimeout(700);
   assert(await page.evaluate(isAssembled),"resizing must preserve the assembled picture");
+  assert((await page.locator("[data-hero-mosaic-complete] img").getAttribute("src")).includes("home-main-poster.webp"),"hero must use the supplied main picture");
+  assert((await page.locator(".home-hero__photo-overlay-image").getAttribute("src")).includes("home-overlay-poster.webp"),"hero overlay must use the supplied second picture");
   await page.screenshot({path:output+"/desktop-hero-autoplay.png",fullPage:false});
   await page.waitForFunction(()=>document.querySelector("#home-blinds")?.dataset.homeBlindsReady==="ready",null,{timeout:20000});
   const scrollToOpening=()=>window.scrollTo(0,document.querySelector("#home-blinds").getBoundingClientRect().top+window.scrollY);
@@ -42,17 +44,20 @@ async function checkHeroAutoplay(browser){
   assert(await page.evaluate(()=>document.querySelector("#home-blinds").getBoundingClientRect().height<=innerHeight+2),"the complete lower animation must share one screen without empty scroll placeholders");
   await page.waitForFunction(()=>[...document.querySelectorAll("img.home-blinds-scene__image")].every(image=>image.complete),null,{timeout:20000});
   await page.waitForFunction(()=>getComputedStyle(document.querySelector("[data-headline-window]")).visibility==="hidden"&&getComputedStyle(document.querySelector("[data-home-blinds-scene]")).visibility==="visible",null,{timeout:12000});
-  const livePhoto=page.locator("[data-scene-video]");
-  try{
-   await page.waitForFunction(()=>{const v=document.querySelector("[data-scene-video]");return v&&!v.paused&&v.currentTime>0;},null,{timeout:10000});
-  }catch(error){
-   const media=await livePhoto.evaluate(video=>({src:video.currentSrc,paused:video.paused,hidden:video.hidden,readyState:video.readyState,networkState:video.networkState,error:video.error?.message,muted:video.muted}));
-   throw new Error("Live photo failed to play: "+JSON.stringify(media),{cause:error});
-  }
-  const liveTime=await livePhoto.evaluate(video=>video.currentTime);
-  await page.waitForTimeout(600);
-  assert.notEqual(await livePhoto.evaluate(video=>video.currentTime),liveTime,"live photo must play real video frames");
+  const promos=await page.locator("img.home-blinds-scene__image").evaluateAll(images=>images.map(image=>image.getAttribute("src")));
+  assert.equal(promos.length,8,"homepage must show all eight project feature posters");
+  assert(promos.every(src=>src&&src.startsWith("/project-media/promo-")),"all lower pictures must use matching project publicity posters");
+  assert.equal(await page.locator("[data-scene-video]").count(),0,"static project publicity must not retain an unrelated anime video");
   await page.waitForTimeout(1500);
+  assert(await page.locator("[data-scene-card-outline]").evaluateAll(outlines=>outlines.every(outline=>Number(outline.style.getPropertyValue("--outline-left"))>0.99)),"all eight poster frames must finish drawing their borders");
+  assert.equal(await page.locator("a[data-scene-frame][target='_blank']").count(),8,"each project poster must open at full size for reading all features");
+  const popupPromise=page.waitForEvent("popup");
+  await page.locator("a[data-scene-frame]").first().click();
+  const posterPage=await popupPromise;
+  await posterPage.waitForLoadState("domcontentloaded");
+  assert(new URL(posterPage.url()).pathname.endsWith("promo-xiaoxu.svg"),"poster click must open the full-size feature image");
+  await posterPage.close();
+  await page.screenshot({path:output+"/desktop-project-promos.png",fullPage:false});
   const scenePosition=()=>document.querySelector("[data-home-blinds-scene]").style.transform;
   const firstPosition=await page.evaluate(scenePosition);
   const stationaryScroll=await page.evaluate(()=>window.scrollY);
@@ -62,10 +67,9 @@ async function checkHeroAutoplay(browser){
   await page.evaluate(()=>window.scrollTo(0,0));
   await page.waitForTimeout(300);
   const pausedPosition=await page.evaluate(scenePosition);
-  assert(await livePhoto.evaluate(video=>video.paused),"live photo should pause outside the viewport");
   await page.waitForTimeout(1800);
   assert.equal(await page.evaluate(scenePosition),pausedPosition,"lower picture playback should pause outside the viewport");
-  await page.route("**/assets/images/home-blinds/act2/4.webp",route=>route.abort());
+  await page.route("**/project-media/promo-momoflow.svg",route=>route.abort());
   await page.reload({waitUntil:"domcontentloaded"});
   await page.waitForFunction(()=>document.querySelector("#home-blinds")?.dataset.homeBlindsReady==="ready",null,{timeout:20000});
   await page.evaluate(scrollToOpening);

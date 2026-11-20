@@ -434,7 +434,8 @@ function setupScenes(context: SetupContext) {
 	// 进度由自动时间线驱动 renderIntro；
 	// 错峰 + 跨度恰好收在 intro=1，最后一幕画满时整条线正好闭合
 	const CARD_INTRO_SHARE = 0.8;
-	const CARD_INTRO_STAGGER = 0.05;
+	const CARD_INTRO_STAGGER =
+		sceneCount > 1 ? (1 - CARD_INTRO_SHARE) / (sceneCount - 1) : 0;
 	const SWING_INTRO_OFFSET = 7;
 	/** 卡片本体浮现占用的 intro 比例：淡入 + 滑入，不再瞬间出现 */
 	const CARD_APPEAR_SHARE = 0.22;

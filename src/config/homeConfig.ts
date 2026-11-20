@@ -56,12 +56,12 @@ export const homeConfig: HomeConfig = {
 		// author 填了就在图片右上角显示作者小标牌，留空不显示
 		photo: {
 			main: {
-				image: "/assets/images/home/home.avif",
-				author: "by 冰冰坚老师",
+				image: "/brand/home-main-poster.webp",
+				author: "",
 			},
 			overlay: {
-				image: "/assets/images/home/home2.avif",
-				author: "by 冰冰坚老师",
+				image: "/brand/home-overlay-poster.webp",
+				author: "",
 			},
 			intro: {
 				direction: "Python、工程制图、移动设备与个人软件实践",
@@ -91,7 +91,7 @@ export const homeConfig: HomeConfig = {
 	homeBlinds: {
 		enabled: true,
 		reveal: {
-			backgroundImage: "/brand/xiaohuang-live-poster.webp",
+			backgroundImage: "/project-media/promo-xiaoxu.svg",
 			// 长条横移揭示的入场标题：标题单行显示（版式按 4 字排），
 			// 祝福语单行显示（版式按 5 字排），可自由增减条数
 			headline: {
@@ -140,74 +140,72 @@ export const homeConfig: HomeConfig = {
 			},
 			// 留言墙气泡：同屏去重，每轮不放回；weight 越大越优先出场，缺省按 1 算。
 			// 气泡只出文字不出图；文案是 2025—2026 网络热梗与站内老梗混排，梗过时了直接换掉就行
-			bubbleMessages: [
-				{ text: "Token来", weight: 5 },
-				{ text: "昨日一去不复回 欧耶耶", weight: 4 },
-				{ text: "年更型站长", weight: 4 },
-				{ text: "我来看看怎么个事", weight: 4 },
-				{ text: "主打一个随缘更新", weight: 3 },
-				{ text: "低山臭水遇知音", weight: 3 },
-				{ text: "站长，博客开源吗", weight: 3 },
-				{ text: "活人感拉满", weight: 3 },
-				{ text: "爱你，站长", weight: 3 },
-				{ text: "版本无回滚", weight: 3 },
-				{ text: "别熬夜了", weight: 3 },
-				{ text: "刚出锅，趁热看", weight: 2 },
-				{ text: "开源的，开源的", weight: 2 },
-				{ text: "哈基墩到此一游", weight: 2 },
-				{ text: "敬自己一杯", weight: 2 },
-				{ text: "感觉很赞", weight: 2 },
-				{ text: "班味有点重", weight: 2 },
-				{ text: "已收藏，下次一定看", weight: 2 },
-				{ text: "归档翻到凌晨三点", weight: 2 },
-			],
+			bubbleMessages: [],
 			// 从评论区捞一条真实留言混进上面这池子：滚到影像层才异步取，且只取一次
 			commentBubble: {
 				enabled: false,
 				weight: 4,
 			},
 			composite: {
-				video: "/brand/xiaohuang-live.webm",
-				title: "筑一间小屋",
-				description: "以代码为梁、热爱为瓦，荒原上筑起一间自己的小屋。",
-				alt: "实况画面",
-				// 明信片左下角标题下的完整日期；删掉即只显示标题
-				date: "2026 / 11 / 19",
+				title: "校序",
+				description: "课表、任务、消息、教务与第二课堂，集中整理校园日常。",
+				alt: "校序功能全景宣传图",
+				date: "2026 / 11 / 09",
 			},
 			items: [
 				{
-					title: "校序",
-					description: "记录校序的开发与功能迭代。",
-					image: "/assets/images/home-blinds/act2/1.webp",
-					alt: "第二幕插画",
-					date: "2026 / 06 / 10",
-				},
-				{
 					title: "绘序",
-					description: "人往学海拾新，倦意悄悄落了窗，小屋静候，蒙上薄尘。",
-					image: "/assets/images/home-blinds/act2/2.webp",
-					alt: "第三幕插画",
-					date: "2026 / 06 / 21",
+					description:
+						"从题目条件到几何求解，再到逐步作图；呈现完整的解题与绘图流程。",
+					image: "/project-media/promo-draftai.svg",
+					alt: "绘序功能全景宣传图",
+					date: "2026 / 11 / 18",
 				},
 				{
-					title: "开发记录",
-					description: "拂去薄尘，重燃灯火，一砖一瓦再把小屋细细打磨。",
-					image: "/assets/images/home-blinds/act2/3.webp",
-					alt: "第四幕插画",
-					date: "2026 / 08 / 18",
+					title: "学序",
+					description:
+						"知到、雨课堂、学习通和 U 校园，统一学习入口与进度核验。",
+					image: "/project-media/promo-studyflow.svg",
+					alt: "学序功能全景宣传图",
+					date: "2026 / 11 / 17",
 				},
 				{
-					title: "继续完善",
-					description: "笔墨暂歇，来日方长；下一程山水，且歌且行。",
-					image: "/assets/images/home-blinds/act2/4.webp",
-					alt: "第五幕插画",
-					date: "2026 / 09 / 01",
+					title: "词序",
+					description: "离线词库、通知复习、学习排程与备份恢复。",
+					image: "/project-media/promo-wordflow.svg",
+					alt: "词序功能全景宣传图",
+					date: "2026 / 11 / 09",
+				},
+				{
+					title: "Reqable Bridge",
+					description: "电脑会话转发、手机查看与保存，连接跨设备网络调试流程。",
+					image: "/project-media/promo-reqable-bridge.svg",
+					alt: "Reqable Bridge 功能全景宣传图",
+					date: "2026 / 11 / 12",
+				},
+				{
+					title: "知到学习助手",
+					description: "课程、章节、学习任务与进度核验，一处管理。",
+					image: "/project-media/promo-zhidao.svg",
+					alt: "知到学习助手完整功能宣传图",
+					date: "2026 / 11 / 14",
+				},
+				{
+					title: "KingoAssistant",
+					description: "课程计划、冲突预检、课程监控与结果核对。",
+					image: "/project-media/promo-kingo.svg",
+					alt: "KingoAssistant 完整功能宣传图",
+					date: "2026 / 11 / 17",
+				},
+				{
+					title: "MomoFlow",
+					description: "墨墨今日词表、通知复习、释义与记忆反馈。",
+					image: "/project-media/promo-momoflow.svg",
+					alt: "MomoFlow 完整功能宣传图",
+					date: "2026 / 11 / 18",
 				},
 			],
-			standImages: [
-				"/assets/images/home-blinds/act2-doll/1.gif",
-				"/assets/images/home-blinds/act2-doll/2.gif",
-			],
+			standImages: [],
 		},
 	},
 

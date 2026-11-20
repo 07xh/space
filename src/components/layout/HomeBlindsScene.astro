@@ -117,7 +117,7 @@ const sceneDate = item.date
 				<i class="home-blinds-scene__outline-edge" data-outline-edge="bottom"></i>
 				<i class="home-blinds-scene__outline-edge" data-outline-edge="left"></i>
 			</span>
-			<div class="home-blinds-scene__frame" data-scene-frame>
+			<a class="home-blinds-scene__frame" data-scene-frame href={item.image} target="_blank" rel="noopener noreferrer" aria-label={`查看${item.title}完整宣传图`}>
 				<img
 					class="home-blinds-scene__image"
 					src={index === 0 ? undefined : item.image}
@@ -139,7 +139,7 @@ const sceneDate = item.date
 						aria-hidden="true"
 					/>
 				)}
-			</div>
+			</a>
 
 			<!-- 标题与完整日期各占一层，保留独立节点供入场动效错峰显示 -->
 			<div class="home-blinds-scene__band">
