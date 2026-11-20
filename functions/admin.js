@@ -28,6 +28,19 @@ const HTML = String.raw`<!doctype html>
     .hint{font-size:13px;color:var(--muted)}.hint strong{color:#775217}
     #status{padding:12px 14px;border:1px solid var(--edge);background:#f7fbf8;border-radius:11px;min-height:48px;overflow-wrap:anywhere}
     #status[data-error="true"]{background:#fff4f3;border-color:#eac1c0;color:#a5312c}
+    .format-bar{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}
+    .format-bar button{font-size:13px;padding:6px 10px}
+    .preview-pane{border:1px solid var(--edge);background:#fff;border-radius:11px;padding:18px;min-height:360px;max-height:62vh;overflow:auto;overflow-wrap:anywhere;line-height:1.85}
+    .preview-pane :first-child{margin-top:0}
+    .preview-pane h1,.preview-pane h2,.preview-pane h3{line-height:1.4;margin:18px 0 9px}
+    .preview-pane p,.preview-pane ul,.preview-pane ol,.preview-pane blockquote{margin:8px 0 14px}
+    .preview-pane pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f7f5;padding:14px;border-radius:8px;font:13px/1.6 ui-monospace,Consolas,monospace}
+    .preview-pane code{background:#f3f7f5;padding:1px 4px;border-radius:4px}
+    .preview-pane pre code{padding:0}
+    .preview-pane img{max-width:100%;height:auto;border-radius:8px;display:block;margin:8px 0}
+    .preview-pane blockquote{border-left:3px solid var(--accent);padding-left:12px;color:var(--muted)}
+    .preview-pane a{overflow-wrap:anywhere}
+    [hidden]{display:none!important}
     :focus-visible{outline:3px solid #55b28b;outline-offset:2px}
     @media(max-width:780px){main{grid-template-columns:minmax(0,1fr)}section{padding:16px}textarea{min-height:48vh}}
   </style>
@@ -58,7 +71,10 @@ const HTML = String.raw`<!doctype html>
     <label for="filename">当前文件路径</label>
     <input id="filename" readonly placeholder="先选择文件或新建">
     <label for="editor">Frontmatter 与 Markdown</label>
+    <div class="format-bar" aria-label="Markdown 快捷格式"><button type="button" data-format="bold">加粗</button><button type="button" data-format="heading">二级标题</button><button type="button" data-format="list">列表</button><button type="button" data-format="code">代码</button><button type="button" data-format="link">链接</button><button id="toggle-preview" type="button" aria-pressed="false">预览正文</button></div>
     <textarea id="editor" spellcheck="false" aria-label="Markdown 文本编辑器" placeholder="先从左侧打开文件"></textarea>
+    <div id="preview-pane" class="preview-pane" role="region" aria-label="正文排版预览" hidden></div>
+    <p class="hint">预览只展示常用 Markdown 格式，不执行 HTML；正式样式以 Astro 部署后为准。</p>
     <label for="image-file">文章图片（PNG、JPEG、WebP、GIF，不超过 4 MiB）</label>
     <input id="image-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" aria-label="选择图片">
     <div class="toolbar">
@@ -83,6 +99,9 @@ const HTML = String.raw`<!doctype html>
   const files = get("files");
   const filename = get("filename");
   const editor = get("editor");
+  const previewPane = get("preview-pane");
+  const previewButton = get("toggle-preview");
+  let previewOpen = false;
   const status = get("status");
   const publishState = get("publish-state");
   const deploymentStatus = get("deploy-status");
@@ -112,6 +131,104 @@ const HTML = String.raw`<!doctype html>
   }
   function showState() {
     publishState.textContent = "当前状态：" + (filename.value ? draftStatus(editor.value) : "未选择内容");
+    if (previewOpen) renderPreview();
+  }
+  function insertFormat(type) {
+    if (isBusy || !filename.value) return info("请先新建或打开文章。", true);
+    if (previewOpen) togglePreview();
+    const start = editor.selectionStart, end = editor.selectionEnd;
+    const selected = editor.value.slice(start, end);
+    let replacement;
+    if (type === "bold") replacement = "**" + (selected || "加粗文字") + "**";
+    else if (type === "heading") replacement = "## " + (selected || "二级标题");
+    else if (type === "list") replacement = selected
+      ? selected.split(/\r?\n/).map((line) => "- " + line).join("\n")
+      : "- 列表项目";
+    else if (type === "code") replacement = String.fromCharCode(96) +
+      (selected || "代码") + String.fromCharCode(96);
+    else if (type === "link") {
+      const address = prompt("输入站内路径或 HTTPS 链接");
+      if (!address) return;
+      if (!/^https:\/\/[^\s]+$/i.test(address) && !/^\/(?!\/)[^\s]*$/.test(address)) {
+        return info("仅支持 HTTPS 链接或站内路径。", true);
+      }
+      replacement = "[" + (selected || "链接文字") + "](" + address + ")";
+    } else return;
+    editor.setRangeText(replacement, start, end, "end");
+    editor.focus();
+    showState();
+  }
+  function appendInline(node, text) {
+    const pattern = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+|\/uploads\/[^\s)]+)\)|\[([^\]]+)\]\((https:\/\/[^\s)]+|\/(?!\/)[^\s)]+)\)|\*\*([^*]+)\*\*|\x60([^\x60]+)\x60/g;
+    let cursor = 0, matched;
+    while ((matched = pattern.exec(text))) {
+      if (matched.index > cursor) node.append(document.createTextNode(text.slice(cursor, matched.index)));
+      if (matched[2]) {
+        const img = document.createElement("img");
+        img.src = matched[2]; img.alt = matched[1] || "文章图片"; img.loading = "lazy";
+        img.referrerPolicy = "no-referrer";
+        node.append(img);
+      } else if (matched[4]) {
+        const a = document.createElement("a");
+        a.href = matched[4]; a.textContent = matched[3]; a.target = "_blank";
+        a.rel = "noopener noreferrer"; node.append(a);
+      } else if (matched[5]) {
+        const b = document.createElement("strong"); b.textContent = matched[5]; node.append(b);
+      } else {
+        const code = document.createElement("code"); code.textContent = matched[6]; node.append(code);
+      }
+      cursor = pattern.lastIndex;
+    }
+    node.append(document.createTextNode(text.slice(cursor)));
+  }
+  function renderPreview() {
+    previewPane.replaceChildren();
+    const source = editor.value.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n)?/, "");
+    const lines = source.split(/\r?\n/);
+    let list = null;
+    const tick = String.fromCharCode(96);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i], trimmed = line.trim();
+      if (!trimmed) { list = null; continue; }
+      if (trimmed.startsWith(tick.repeat(3)) || trimmed.startsWith("~~~")) {
+        const marker = trimmed.slice(0, 3), codeLines = [];
+        while (++i < lines.length && !lines[i].trim().startsWith(marker)) codeLines.push(lines[i]);
+        const pre = document.createElement("pre"), code = document.createElement("code");
+        code.textContent = codeLines.join("\n"); pre.append(code); previewPane.append(pre);
+        list = null; continue;
+      }
+      const heading = line.match(/^\s{0,3}(#{1,6})\s+(.+)$/);
+      if (heading) {
+        const title = document.createElement("h" + heading[1].length);
+        appendInline(title, heading[2]); previewPane.append(title); list = null; continue;
+      }
+      const bullet = line.match(/^\s*(?:[-*+]\s+|\d+\.\s+)(.*)$/);
+      if (bullet) {
+        const type = /^\s*\d+\./.test(line) ? "ol" : "ul";
+        if (!list || list.tagName.toLowerCase() !== type) {
+          list = document.createElement(type); previewPane.append(list);
+        }
+        const item = document.createElement("li"); appendInline(item, bullet[1]); list.append(item);
+        continue;
+      }
+      list = null;
+      const quote = line.match(/^\s*>\s?(.*)$/);
+      const p = document.createElement(quote ? "blockquote" : "p");
+      appendInline(p, quote ? quote[1] : line); previewPane.append(p);
+    }
+    if (!previewPane.childNodes.length) {
+      const p = document.createElement("p"); p.textContent = "正文为空。";
+      previewPane.append(p);
+    }
+  }
+  function togglePreview() {
+    if (isBusy) return;
+    previewOpen = !previewOpen;
+    editor.hidden = previewOpen;
+    previewPane.hidden = !previewOpen;
+    previewButton.textContent = previewOpen ? "返回编辑" : "预览正文";
+    previewButton.setAttribute("aria-pressed", String(previewOpen));
+    if (previewOpen) renderPreview(); else editor.focus();
   }
   function setDraft(text, isDraft) {
     const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -181,7 +298,7 @@ const HTML = String.raw`<!doctype html>
   }
   function busy(next) {
     isBusy = next;
-    for (const id of ["kind","files","refresh","new","load","save","publish","delete","upload","image-file","check-deploy","editor"]) get(id).disabled = next;
+    for (const id of ["kind","files","refresh","new","load","save","publish","delete","upload","image-file","check-deploy","editor","toggle-preview"]) get(id).disabled = next;
   }
   async function request(method, path, body) {
     const options = { method, credentials: "same-origin", headers: { "X-Requested-With": "Space-Admin" } };
@@ -308,8 +425,9 @@ const HTML = String.raw`<!doctype html>
       if (!response.ok) throw new Error(result.error || "图片上传失败（HTTP " + response.status + "）");
       const markdown = "![图片](" + result.imageUrl + ")";
       editor.setRangeText(markdown, editor.selectionStart, editor.selectionEnd, "end");
-      editor.focus();
+      if (!previewOpen) editor.focus();
       imageInput.value = "";
+      showState();
       trackCommit(result.commit, false);
       info("图片已保存到 07xh/space：" + result.imageUrl +
         "。Markdown 已插入；预览站部署完成后图片才可访问。请保存正文。");
@@ -343,6 +461,10 @@ const HTML = String.raw`<!doctype html>
     } finally { busy(false); }
   }
   editor.addEventListener("input", showState);
+  previewButton.addEventListener("click", togglePreview);
+  for (const control of document.querySelectorAll("[data-format]")) {
+    control.addEventListener("click", () => insertFormat(control.dataset.format));
+  }
   get("refresh").addEventListener("click", refresh);
   get("check-deploy").addEventListener("click", checkDeploy);
   get("new").addEventListener("click", create);
