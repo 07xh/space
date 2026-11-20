@@ -328,10 +328,19 @@ const HTML = String.raw`<!doctype html>
       sha = "";
       trackCommit(result.commit, false);
       showState();
-      info("已提交删除：" + (result.commit || "成功") + "。");
-    } catch (error) { info(error.message, true); }
-    finally { busy(false); }
-    await refresh();
+      info("GitHub 已确认删除：" + (result.commit || "成功") + "；可检查该次部署。");
+      try {
+        const data = await request("GET");
+        files.replaceChildren();
+        for (const item of data.items) files.add(new Option(item.path, item.path));
+      } catch (error) {
+        info("GitHub 已确认删除（" + (result.commit || "已提交") +
+          "），但文件列表刷新失败：" + error.message + "。请勿重复删除，可单独刷新。", true);
+      }
+    } catch (error) {
+      info("删除请求未确认成功：" + error.message +
+        "。请先检查 GitHub 文件状态，避免重复操作。", true);
+    } finally { busy(false); }
   }
   editor.addEventListener("input", showState);
   get("refresh").addEventListener("click", refresh);
