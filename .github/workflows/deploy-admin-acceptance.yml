@@ -65,7 +65,7 @@ jobs:
             echo "::error::Isolated branch preview is not publicly reachable"
             exit 1
           fi
-          for route in /admin '/api/admin/content?kind=posts'; do
+          for route in /admin '/api/admin/content?kind=posts' '/api/admin/deployment?commit=dddddddddddddddddddddddddddddddddddddddd'; do
             status="$(curl --silent --show-error --max-time 20 --output /tmp/space-private-body --write-out '%{http_code}' "$base$route")"
             case "$status" in
               302|303|307|308|401|403|503) echo "Protected GET $route: HTTP $status" ;;
