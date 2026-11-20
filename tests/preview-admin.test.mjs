@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { webcrypto } from "node:crypto";
+import { readFileSync } from "node:fs";
 import {
   requirePreviewAdmin,
   requireSameOriginWrite,
@@ -245,4 +246,18 @@ test("private editor includes explicit draft/publish controls and compilable UI 
   } finally {
     globalThis.fetch = original;
   }
+});
+
+
+test("preview deploy remains GitHub Actions Wrangler direct upload, with private-route guard", () => {
+  const yaml = readFileSync(new URL("../.github/workflows/deploy-preview.yml", import.meta.url), "utf8");
+  assert.match(yaml, /push:\s*\n\s*branches:\s*\[main\]/);
+  assert.match(yaml, /SPACE_WALINE_SERVER_URL:\s*\$\{\{\s*vars\.SPACE_WALINE_SERVER_URL\s*\}\}/);
+  assert.match(yaml, /cloudflare\/wrangler-action@v4/);
+  assert.match(yaml, /command: pages deploy dist --project-name=07xh-space-preview --branch=main/);
+  assert.match(yaml, /node --test tests\/preview-admin\.test\.mjs/);
+  assert.match(yaml, /pages functions build functions/);
+  assert.match(yaml, /Verify deployed private Functions remain protected/);
+  assert.match(yaml, /\/api\/admin\/content\?kind=posts/);
+  assert.match(yaml, /\/api\/admin\/upload/);
 });
