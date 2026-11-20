@@ -7,6 +7,7 @@ import {
   requireSameOriginWrite,
 } from "../src/lib/preview-admin-auth.js";
 import { onRequest as api } from "../functions/api/admin/content.js";
+import { onRequestGet as deployment } from "../functions/api/admin/deployment.js";
 import { onRequestGet as editor } from "../functions/admin.js";
 import { onRequest as upload } from "../functions/api/admin/upload.js";
 
@@ -237,6 +238,9 @@ test("private editor includes explicit draft/publish controls and compilable UI 
     assert.equal(response.status, 200);
     const html = await response.text();
     assert.match(html, /id="publish"/);
+    assert.match(html, /id="check-deploy"/);
+    assert.match(html, /\/api\/admin\/deployment\?commit=/);
+    assert.match(html, /发布后的页面回归测试通过/);
     assert.match(html, /draft: true/);
     assert.match(html, /发布到预览站/);
     const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)];
@@ -261,4 +265,64 @@ test("preview deploy remains GitHub Actions Wrangler direct upload, with private
   assert.match(yaml, /Verify deployed private Functions remain protected/);
   assert.match(yaml, /\/api\/admin\/content\?kind=posts/);
   assert.match(yaml, /\/api\/admin\/upload/);
+});
+
+
+test("commit receipt is Access-protected, validates SHA and reads no write secrets", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("Unverified request must never reach GitHub"); };
+  try {
+    assert.equal((await deployment({ request: request("/api/admin/deployment?commit=" + "a".repeat(40)), env })).status, 401);
+    assert.equal((await deployment({ request: request("/api/admin/deployment?commit=" + "a".repeat(40)), env: {} })).status, 503);
+  } finally {
+    globalThis.fetch = original;
+  }
+  const { token, jwk } = await makeAccessToken();
+  const calls = [];
+  let runs = [];
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({ url: String(url), headers: init.headers || {} });
+    if (String(url).endsWith("/cdn-cgi/access/certs")) return Response.json({ keys: [jwk] });
+    assert.equal(String(url), "https://api.github.com/repos/07xh/space/actions/runs?branch=main&per_page=100");
+    assert.equal(init.headers.Authorization, undefined, "Actions metadata must not require Contents:write permission");
+    return Response.json({ workflow_runs: runs });
+  };
+  try {
+    const bad = await deployment({ request: request("/api/admin/deployment?commit=../../etc/passwd", token), env });
+    assert.equal(bad.status, 400);
+    assert.equal(calls.filter((call) => call.url.includes("api.github.com")).length, 0);
+
+    const commit = "d".repeat(40);
+    const url = "/api/admin/deployment?commit=" + commit;
+    const deployRun = { name: "Deploy Cloudflare Pages preview", head_sha: commit,
+      head_branch: "main", event: "push", id: 123,
+      status: "in_progress", conclusion: null };
+    const verification = { name: "Verify deployed preview article and project pages",
+      head_sha: commit, head_branch: "main", event: "workflow_run",
+      id: 124, status: "in_progress", conclusion: null };
+    async function phase() {
+      const response = await deployment({ request: request(url, token), env });
+      assert.equal(response.status, 200);
+      return response.json();
+    }
+    assert.equal((await phase()).phase, "not_found");
+    runs = [deployRun];
+    assert.equal((await phase()).phase, "deploying");
+    deployRun.status = "completed";
+    deployRun.conclusion = "success";
+    const uploaded = await phase();
+    assert.equal(uploaded.phase, "deployed");
+    assert.equal(uploaded.deploy.url, "https://github.com/07xh/space/actions/runs/123");
+    runs = [verification, deployRun];
+    assert.equal((await phase()).phase, "verifying");
+    verification.status = "completed";
+    verification.conclusion = "failure";
+    assert.equal((await phase()).phase, "verification_failed");
+    verification.conclusion = "success";
+    assert.equal((await phase()).phase, "verified");
+    deployRun.conclusion = "failure";
+    assert.equal((await phase()).phase, "deploy_failed");
+  } finally {
+    globalThis.fetch = original;
+  }
 });
