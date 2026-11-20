@@ -40,6 +40,11 @@ jobs:
           done
           cat /tmp/space-preview.log
           exit 1
+      - name: Article illustration browser checks
+        env:
+          SPACE_PLAYWRIGHT_PATH: /tmp/space-playwright/node_modules/playwright
+          SPACE_PREVIEW_URL: http://127.0.0.1:4321
+        run: node tests/post-image-smoke.cjs
       - name: Desktop and mobile real-browser checks
         env:
           SPACE_PLAYWRIGHT_PATH: /tmp/space-playwright/node_modules/playwright
