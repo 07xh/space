@@ -145,6 +145,29 @@ test("verified admin can list, create and read only allowlisted content paths", 
     assert(calls.every((call) => call.url.includes("cloudflareaccess.com") ||
       call.url.includes("/repos/07xh/space/")));
     assert(calls.some((call) => call.method === "PUT"));
+    const invalidPosts = [
+      '---\ntitle: "Impossible date"\npublished: 2026-02-31\ndraft: true\n---\n\nContent',
+      '---\ntitle: ""\npublished: 2026-11-20\ndraft: true\n---\n\nContent',
+      '---\ntitle: "Bad metadata"\npublished: 2026-11-20\ndraft: perhaps\n---\n\nContent',
+    ];
+    const previousWrites = calls.filter((call) => call.method === "PUT").length;
+    for (const content of invalidPosts) {
+      const denied = await api({
+        request: request("/api/admin/content?kind=posts", token, "POST", {
+          kind: "posts", path: "src/content/posts/demo.md", content,
+        }), env,
+      });
+      assert.equal(denied.status, 400, "Malformed article frontmatter must be rejected");
+    }
+    const invalidMoment = await api({
+      request: request("/api/admin/content?kind=dynamic", token, "POST", {
+        kind: "dynamic", path: "src/content/dynamic/update.md",
+        content: '---\npublished: 2026-11-20\ndraft: true\npinned: someday\n---\n\nContent',
+      }), env,
+    });
+    assert.equal(invalidMoment.status, 400);
+    assert.equal(calls.filter((call) => call.method === "PUT").length, previousWrites,
+      "Invalid frontmatter must never be submitted to GitHub");
   } finally {
     globalThis.fetch = original;
   }
@@ -194,6 +217,31 @@ test("preview image upload blocks spoofed formats and writes valid PNG only to n
     const payload = await result.json();
     assert.match(payload.imageUrl, /^\/uploads\/\d{8}-[a-f0-9]{12}\.png$/);
     assert.equal(calls.filter((call) => call.url.includes("api.github.com")).length, 1);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+
+test("private editor includes explicit draft/publish controls and compilable UI script", async () => {
+  const { token, jwk } = await makeAccessToken();
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.equal(String(url), "https://example.cloudflareaccess.com/cdn-cgi/access/certs");
+    return Response.json({ keys: [jwk] });
+  };
+  try {
+    const response = await editor({ request: request("/admin", token), env });
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.match(html, /id="publish"/);
+    assert.match(html, /draft: true/);
+    assert.match(html, /发布到预览站/);
+    const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)];
+    assert.equal(scripts.length, 1);
+    // The function is embedded inside an HTML string: Node's module syntax check
+    // alone would not detect an invalid literal or malformed regular expression.
+    assert.doesNotThrow(() => new Function(scripts[0][1]));
   } finally {
     globalThis.fetch = original;
   }
