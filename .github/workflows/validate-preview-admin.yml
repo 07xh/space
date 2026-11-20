@@ -1,0 +1,32 @@
+name: Validate private preview publishing backend
+
+on:
+  pull_request:
+    paths:
+      - "functions/**"
+      - "src/lib/preview-admin-auth.js"
+      - "tests/preview-admin.test.mjs"
+      - ".github/workflows/validate-preview-admin.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax-check private Pages Functions
+        run: |
+          node --check functions/admin.js
+          node --check functions/api/admin/content.js
+          node --check src/lib/preview-admin-auth.js
+      - name: Verify authorization and GitHub publishing gates
+        run: node --test tests/preview-admin.test.mjs
+      - name: Bundle Cloudflare Pages Functions without deploying
+        run: npx --yes wrangler@4 pages functions build functions --outdir /tmp/space-preview-pages-functions --compatibility-date 2026-11-20
