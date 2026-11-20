@@ -51,6 +51,7 @@ async function discoverPublishedRoutes(request) {
   return [
     { path: "/projects/", kind: "projects" },
     ...projects.map((path) => ({ path, kind: "project" })),
+    { path: "/dynamic/", kind: "dynamic" },
     { path: "/list/", kind: "articles" },
     ...posts.map((path) => ({
       path, kind: "post", minImages: minimumArticleIllustrations.get(path) || 0,
@@ -81,6 +82,15 @@ async function inspect(page, item, device) {
       item.path + " is missing its feature/status cards");
     assert(await page.locator('[aria-label="项目外部链接"]').count() > 0,
       item.path + " is missing repository or download links");
+  }
+  if (item.kind === "dynamic") {
+    const timeline = page.locator("#moments-feed");
+    await timeline.waitFor({ state: "attached", timeout: 18000 });
+    const cards = timeline.locator(".moment-item");
+    assert(await cards.count() >= 1, "Dynamic timeline must contain published moments");
+    const hidden = await cards.evaluateAll((nodes) =>
+      nodes.some((node) => !node.querySelector(".moment-name, .moment-text")));
+    assert.equal(hidden, false, "Dynamic timeline includes an incomplete moment");
   }
   if (item.kind === "post") {
     const protectedArticle = page.locator("#encrypted-container");
