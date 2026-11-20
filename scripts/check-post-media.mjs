@@ -1,12 +1,12 @@
-// Fail builds when a locally referenced blog image is missing.
+// Fail builds when locally referenced article, project, and homepage media is missing.
 // External links are intentionally not checked; they belong to their respective hosts.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const contentDirectories = ["posts", "dynamic"].map((name) => join(repoRoot, "src", "content", name));
-const imageExtension = /\.(?:svg|png|jpe?g|webp|gif|avif|apng|bmp|ico)$/i;
+const contentDirectories = ["posts", "dynamic", "projects"].map((name) => join(repoRoot, "src", "content", name));
+const mediaExtension = /\.(?:svg|png|jpe?g|webp|gif|avif|apng|bmp|ico|mp4|webm)$/i;
 
 function walk(directory) {
   if (!existsSync(directory)) return [];
@@ -36,7 +36,7 @@ function referencedMedia(source) {
   const patterns = [
     /!?\[[^\]\n]*\]\(\s*<?([^\s)>]+)>?(?:\s+[^)]*)?\)/g,
     /\b(?:src|href|poster)\s*=\s*["']([^"']+)["']/g,
-    /^\s*(?:image|cover|coverImage|thumbnail|poster)\s*:\s*["']?([^"'\s#]+)/gm,
+    /^\s*(?:image|cover|coverImage|thumbnail|poster|video|backgroundImage)\s*:\s*["']?([^"'\s#]+)/gm,
   ];
   for (const pattern of patterns) {
     for (const match of source.matchAll(pattern)) references.add(match[1]);
@@ -50,7 +50,7 @@ function localPath(documentPath, reference) {
   let normalized;
   try { normalized = decodeURIComponent(raw.split(/[?#]/, 1)[0]); }
   catch { normalized = raw.split(/[?#]/, 1)[0]; }
-  if (!imageExtension.test(normalized)) return null;
+  if (!mediaExtension.test(normalized)) return null;
   const target = normalized.startsWith("/")
     ? resolve(repoRoot, "public", "." + normalized)
     : resolve(dirname(documentPath), normalized);
@@ -62,14 +62,14 @@ function localPath(documentPath, reference) {
   return target;
 }
 
-const documents = contentDirectories.flatMap(walk);
+const documents = [...contentDirectories.flatMap(walk), join(repoRoot, "src", "config", "homeConfig.ts")];
 const missing = [];
 let checked = 0;
 const externalImages = new Set();
 for (const documentPath of documents) {
   const content = withoutCodeBlocks(readFileSync(documentPath, "utf8"));
   for (const reference of referencedMedia(content)) {
-    if (/^https?:\/\//i.test(reference) && imageExtension.test(reference.split(/[?#]/, 1)[0])) {
+    if (/^https?:\/\//i.test(reference) && mediaExtension.test(reference.split(/[?#]/, 1)[0])) {
       externalImages.add(reference);
       continue;
     }
@@ -87,10 +87,10 @@ for (const documentPath of documents) {
   }
 }
 if (missing.length) {
-  console.error(`Missing ${missing.length} local blog image reference(s):\n${missing.join("\n")}\n`);
+  console.error(`Missing ${missing.length} local blog media reference(s):\n${missing.join("\n")}\n`);
   process.exitCode = 1;
 } else {
-  console.log(`Blog media OK: ${documents.length} content files, ${checked} local image references checked, ${externalImages.size} external image URLs cataloged.`);
+  console.log(`Blog media OK: ${documents.length} content files, ${checked} local media references checked, ${externalImages.size} external image URLs cataloged.`);
 }
 
 // Remote checks are opt-in and diagnostic: anti-hotlinking and temporary 403/502 errors
