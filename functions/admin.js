@@ -56,6 +56,8 @@ const HTML = String.raw`<!doctype html>
     <label for="kind">内容类型</label>
     <select id="kind"><option value="posts">文章</option><option value="dynamic">动态</option></select>
     <label for="files">GitHub 文件</label>
+    <input id="file-search" type="search" placeholder="搜索文章或动态文件名" aria-label="搜索内容文件">
+    <p id="file-count" class="hint" aria-live="polite">读取文件列表中…</p>
     <select id="files" size="12" aria-label="选择文章或动态文件"></select>
     <div class="toolbar">
       <button id="refresh" type="button">刷新</button>
@@ -98,6 +100,8 @@ const HTML = String.raw`<!doctype html>
   const get = (id) => document.getElementById(id);
   const kind = get("kind");
   const files = get("files");
+  const fileSearch = get("file-search");
+  let listedItems = [];
   const filename = get("filename");
   const editor = get("editor");
   const previewPane = get("preview-pane");
@@ -314,7 +318,7 @@ const HTML = String.raw`<!doctype html>
   }
   function busy(next) {
     isBusy = next;
-    for (const id of ["kind","files","refresh","new","load","save","publish","unpublish","delete","upload","image-file","check-deploy","editor","toggle-preview"]) get(id).disabled = next;
+    for (const id of ["kind","files","file-search","refresh","new","load","save","publish","unpublish","delete","upload","image-file","check-deploy","editor","toggle-preview"]) get(id).disabled = next;
   }
   async function request(method, path, body) {
     const options = { method, credentials: "same-origin", headers: { "X-Requested-With": "Space-Admin" } };
@@ -329,13 +333,19 @@ const HTML = String.raw`<!doctype html>
     return data;
   }
   function populateFiles(items, selectedPath = "") {
+    listedItems = items;
     const prefix = "src/content/" + kind.value + "/";
+    const term = fileSearch.value.trim().toLocaleLowerCase();
+    const keepPath = selectedPath || files.value;
     files.replaceChildren();
     for (const item of items) {
       const label = item.path.startsWith(prefix) ? item.path.slice(prefix.length) : item.path;
+      if (term && !label.toLocaleLowerCase().includes(term)) continue;
       files.add(new Option(label, item.path));
     }
-    if (selectedPath) files.value = selectedPath;
+    if (keepPath) files.value = keepPath;
+    else files.selectedIndex = -1;
+    get("file-count").textContent = "显示 " + files.options.length + " / " + items.length + " 个文件";
   }
   async function refresh() {
     if (isBusy) return;
@@ -505,6 +515,7 @@ const HTML = String.raw`<!doctype html>
     control.addEventListener("click", () => insertFormat(control.dataset.format));
   }
   get("refresh").addEventListener("click", refresh);
+  fileSearch.addEventListener("input", () => populateFiles(listedItems));
   get("check-deploy").addEventListener("click", checkDeploy);
   get("new").addEventListener("click", create);
   get("load").addEventListener("click", load);
@@ -525,6 +536,8 @@ const HTML = String.raw`<!doctype html>
       return;
     }
     activeKind = kind.value;
+    fileSearch.value = "";
+    listedItems = [];
     sha = ""; isNew = false; filename.value = ""; editor.value = ""; cleanContent = "";
     showState();
     refresh();
