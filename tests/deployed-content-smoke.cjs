@@ -13,17 +13,50 @@ if (origin !== "https://07xh-space-preview.pages.dev") {
 const output = "artifacts/deployed-content";
 fs.mkdirSync(output, { recursive: true });
 
-const routes = [
-  { path: "/projects/", kind: "projects" },
-  { path: "/projects/dorm-os/", kind: "project" },
-  { path: "/projects/studyflow/", kind: "project" },
-  { path: "/projects/kingo-assistant/", kind: "project" },
-  { path: "/projects/momoflow/", kind: "project" },
-  { path: "/list/", kind: "articles" },
-  { path: "/posts/engineering-drawing-exercise-3-14-visibility/", kind: "post", minImages: 6 },
-  { path: "/posts/draftai-geometry-logic/", kind: "post", minImages: 7 },
-  { path: "/posts/python-functions-from-zero/", kind: "post" },
-];
+// Discover public content from the actually deployed sitemap; drafts are excluded.
+const minimumArticleIllustrations = new Map([
+  ["/posts/engineering-drawing-exercise-3-14-visibility/", 6],
+  ["/posts/draftai-geometry-logic/", 7],
+]);
+
+function sitemapLocations(xml) {
+  return [...xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/g)]
+    .map((match) => match[1].replace(/&amp;/g, "&"));
+}
+
+async function discoverPublishedRoutes(request) {
+  const response = await request.get(origin + "/sitemap-index.xml", { timeout: 30000 });
+  assert.equal(response.status(), 200, "Deployed sitemap-index.xml is unavailable");
+  const sitemaps = sitemapLocations(await response.text());
+  assert(sitemaps.length > 0, "Sitemap index does not reference any sitemaps");
+
+  const discovered = new Set();
+  for (const location of sitemaps) {
+    const url = new URL(location, origin);
+    assert.equal(url.origin, origin, "Sitemap references an unexpected origin");
+    const page = await request.get(url.href, { timeout: 30000 });
+    assert.equal(page.status(), 200, "Sitemap page unavailable: " + url.pathname);
+    for (const entry of sitemapLocations(await page.text())) {
+      const target = new URL(entry, origin);
+      assert.equal(target.origin, origin, "Published page references an unexpected origin");
+      discovered.add(target.pathname);
+    }
+  }
+  const projects = [...discovered].filter((path) =>
+    /^\/projects\/[^/]+\/$/.test(path) &&
+    !["/projects/firefly/", "/projects/example-project/"].includes(path)).sort();
+  const posts = [...discovered].filter((path) => /^\/posts\/.+\/$/.test(path)).sort();
+  assert(projects.length >= 8, "Expected at least eight published project pages");
+  assert(posts.length >= 15, "Expected at least fifteen published articles");
+  return [
+    { path: "/projects/", kind: "projects" },
+    ...projects.map((path) => ({ path, kind: "project" })),
+    { path: "/list/", kind: "articles" },
+    ...posts.map((path) => ({
+      path, kind: "post", minImages: minimumArticleIllustrations.get(path) || 0,
+    })),
+  ];
+}
 
 async function inspect(page, item, device) {
   const errors = [];
@@ -50,12 +83,20 @@ async function inspect(page, item, device) {
       item.path + " is missing repository or download links");
   }
   if (item.kind === "post") {
-    const body = page.locator(".markdown-content").first();
-    await body.waitFor({ state: "attached", timeout: 18000 });
-    await body.locator("details").evaluateAll((els) => els.forEach((el) => { el.open = true; }));
-    const count = await body.locator("img:not(.external-link__favicon)").count();
-    if (item.minImages) {
-      assert(count >= item.minImages, item.path + " expected " + item.minImages + " article illustrations, got " + count);
+    const protectedArticle = page.locator("#encrypted-container");
+    if (await protectedArticle.count()) {
+      const lock = protectedArticle.locator("#password-form");
+      await lock.waitFor({ state: "visible", timeout: 12000 });
+      assert(await lock.locator('input[type="password"]').count() === 1,
+        item.path + " missing protected article password control");
+    } else {
+      const body = page.locator(".markdown-content").first();
+      await body.waitFor({ state: "attached", timeout: 18000 });
+      await body.locator("details").evaluateAll((els) => els.forEach((el) => { el.open = true; }));
+      const count = await body.locator("img:not(.external-link__favicon)").count();
+      if (item.minImages) {
+        assert(count >= item.minImages, item.path + " expected " + item.minImages + " article illustrations, got " + count);
+      }
     }
   }
 
@@ -93,6 +134,10 @@ async function inspect(page, item, device) {
 async function main() {
   const browser = await chromium.launch({ headless: true });
   try {
+    const discoveryContext = await browser.newContext();
+    let routes;
+    try { routes = await discoverPublishedRoutes(discoveryContext.request); }
+    finally { await discoveryContext.close(); }
     for (const device of [
       { name: "desktop", width: 1440, height: 900 },
       { name: "mobile", width: 390, height: 844 },
