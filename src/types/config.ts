@@ -396,9 +396,9 @@ export type HomeConfig = {
 		/** 拼合完成后的照片态：居中微倾后左移，右侧介绍卡片 + 下方滑入叠加图 */
 		photo: {
 			/** 拼合照片态的主图；author 为右上角作者标牌，留空不显示 */
-			main: { image: string; author?: string };
+			main: { image: string; video?: string; author?: string };
 			/** 落位后从下方滑入、叠在照片下缘的第二张图；image 留空不显示 */
-			overlay?: { image: string; author?: string };
+			overlay?: { image: string; video?: string; author?: string };
 			intro?: {
 				/** 站点方向 */
 				direction: string;

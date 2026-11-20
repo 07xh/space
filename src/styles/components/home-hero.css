@@ -238,6 +238,27 @@ html:has(.home-hero) #top-row {
 	box-shadow: 0 1.8rem 3.6rem -1.4rem var(--home-hero-photo-shadow);
 }
 
+.home-hero__photo-overlay-video {
+	position: absolute;
+	inset: 0;
+	display: block;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border: 0.4rem solid var(--home-hero-photo-edge);
+	border-radius: 0.9rem;
+	box-shadow: 0 1.8rem 3.6rem -1.4rem var(--home-hero-photo-shadow);
+	pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.home-hero__mosaic-live,
+	.home-hero__photo-overlay-video {
+		display: none;
+	}
+}
+
 /* 图片右上角作者标牌：深色磨砂小片，压在图片内容上所以不随主题反色 */
 .home-hero__photo-author {
 	position: absolute;
@@ -272,6 +293,20 @@ html:has(.home-hero) #top-row {
 	display: block;
 	width: 100%;
 	height: auto;
+}
+
+.home-hero__mosaic-complete picture {
+	display: block;
+}
+
+.home-hero__mosaic-live {
+	position: absolute;
+	inset: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	pointer-events: none;
 }
 
 .home-hero__rain {
