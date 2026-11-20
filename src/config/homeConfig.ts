@@ -91,7 +91,7 @@ export const homeConfig: HomeConfig = {
 	homeBlinds: {
 		enabled: true,
 		reveal: {
-			backgroundImage: "/assets/images/home-blinds/act1/1.webp",
+			backgroundImage: "/brand/xiaohuang-live-poster.webp",
 			// 长条横移揭示的入场标题：标题单行显示（版式按 4 字排），
 			// 祝福语单行显示（版式按 5 字排），可自由增减条数
 			headline: {
@@ -167,9 +167,10 @@ export const homeConfig: HomeConfig = {
 				weight: 4,
 			},
 			composite: {
+				video: "/brand/xiaohuang-live.mp4",
 				title: "筑一间小屋",
 				description: "以代码为梁、热爱为瓦，荒原上筑起一间自己的小屋。",
-				alt: "第一幕插画",
+				alt: "实况画面",
 				// 明信片左下角标题下的完整日期；删掉即只显示标题
 				date: "2026 / 11 / 19",
 			},

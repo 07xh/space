@@ -242,6 +242,10 @@ function setupScenes(context: SetupContext) {
 		section.querySelectorAll<HTMLElement>("[data-home-blinds-scene]"),
 	).map(collectScene);
 	const cards = scenes.map((scene) => scene.card);
+	const sceneVideos = cards.map((card) =>
+		card.querySelector<HTMLVideoElement>("[data-scene-video]"),
+	);
+	let activeVideo: HTMLVideoElement | null = null;
 	const cardOutlines = scenes.map((scene) => scene.cardOutline);
 	const swings = scenes.map((scene) => scene.swing);
 	const stands = selectRequired<HTMLElement>(section, "[data-scenes-stands]");
@@ -319,7 +323,7 @@ function setupScenes(context: SetupContext) {
 	const playbackState = { intro: 0, scene: 0, revealExit: 0 };
 	const sceneImages = cards.flatMap((card) =>
 		Array.from(
-			card.querySelectorAll<HTMLImageElement>(".home-blinds-scene__image"),
+			card.querySelectorAll<HTMLImageElement>("img.home-blinds-scene__image"),
 		),
 	);
 	let requestedSceneImages = false;
@@ -552,6 +556,24 @@ function setupScenes(context: SetupContext) {
 	// 循环暂停时保留当前帧，回到前台或滚回本层后继续。
 	const syncAnimationPlayback = () => {
 		const loopsRun = loopsShouldRun();
+		const nextVideo = loopsRun
+			? (sceneVideos[Math.round(playbackState.scene)] ?? null)
+			: null;
+		if (nextVideo !== activeVideo) {
+			activeVideo?.pause();
+			activeVideo = nextVideo;
+			if (nextVideo && !nextVideo.hidden) {
+				void nextVideo.play().catch((error: unknown) => {
+					// 快速离屏导致的 play/pause 取消不算素材失败。
+					if (error instanceof DOMException && error.name === "AbortError")
+						return;
+					if (!signal.aborted) {
+						nextVideo.hidden = true;
+						nextVideo.style.visibility = "hidden";
+					}
+				});
+			}
+		}
 		const imagesReady = sceneImages.every(
 			(image) =>
 				image.complete &&
@@ -788,7 +810,7 @@ function setupScenes(context: SetupContext) {
 			duration: SCENES_ENTER_DURATION,
 			ease: "power2.inOut",
 		})
-		.to({}, { duration: SCENE_HOLD_DURATION });
+		.to({}, { duration: sceneVideos[0] ? 4 : SCENE_HOLD_DURATION });
 	for (let index = 1; index <= lastSceneIndex; index += 1) {
 		scenePlayback
 			.to(playbackState, {
@@ -866,6 +888,7 @@ function setupScenes(context: SetupContext) {
 	syncStage();
 
 	return () => {
+		activeVideo?.pause();
 		window.clearTimeout(resetWindTimer);
 		window.clearTimeout(resizeTimer);
 		ScrollTrigger.removeEventListener("refresh", handleRefresh);

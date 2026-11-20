@@ -235,6 +235,8 @@ export type HomeBlindsSceneItem = {
 	/** 明信片底部的介绍文案 */
 	description: string;
 	image: string;
+	/** 实况照片的视频片段；image 同时作为静态封面。 */
+	video?: string;
 	alt: string;
 	/** 标题下方的完整日期，如 "2026 / 03 / 14"；留空则只显示标题 */
 	date?: string;

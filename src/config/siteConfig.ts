@@ -15,21 +15,23 @@ export const siteConfig: SiteConfig = {
 	// 头像：owner=站长，bot=AI bot
 	// 使用 public 目录绝对路径，或远程 URL
 	avatar: {
-		owner: "/brand/07xh-ship.svg",
+		owner: "/brand/xiaohuang-avatar.webp",
 		bot: "/brand/07xh-ship.svg",
 	},
 
 	// 站点 URL
 	// Cloudflare Pages preview builds use their actual preview URL for SEO metadata.
 	// A future custom domain can override this with SPACE_SITE_URL.
-	site_url: process.env.SPACE_SITE_URL || process.env.CF_PAGES_URL || "https://space.0701000.xyz",
+	site_url:
+		process.env.SPACE_SITE_URL ||
+		process.env.CF_PAGES_URL ||
+		"https://space.0701000.xyz",
 
 	// 站点描述
 	// 同时用作：首页与各功能页的 <meta name="description"> 兜底、JSON-LD 里
 	// WebSite/Person 实体的 description。所以这里写清站点的实际内容方向，
 	// 而不是只写"记录学习与生活"这类无检索价值的通用表述。
-	description:
-		"记录 Python、工程制图和个人开源软件开发实践。",
+	description: "记录 Python、工程制图和个人开源软件开发实践。",
 
 	// 站点关键词
 	keywords: [
@@ -84,7 +86,7 @@ export const siteConfig: SiteConfig = {
 	},
 
 	// 站点开始日期，用于统计运行天数
-	siteStartDate: "2026-11-19",
+	siteStartDate: "2026-10-17",
 
 	// 站点时区（IANA 时区字符串），用于格式化bangumi、rss里的构建日期时间等等..
 	// 示例："Asia/Shanghai", "UTC", 如果为空，则按照构建服务器的时区进行时区转换

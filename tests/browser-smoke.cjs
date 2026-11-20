@@ -40,8 +40,13 @@ async function checkHeroAutoplay(browser){
   const scrollToOpening=()=>window.scrollTo(0,document.querySelector("#home-blinds").getBoundingClientRect().top+window.scrollY);
   await page.evaluate(scrollToOpening);
   assert(await page.evaluate(()=>document.querySelector("#home-blinds").getBoundingClientRect().height<=innerHeight+2),"the complete lower animation must share one screen without empty scroll placeholders");
-  await page.waitForFunction(()=>[...document.querySelectorAll(".home-blinds-scene__image")].every(image=>image.complete),null,{timeout:20000});
+  await page.waitForFunction(()=>[...document.querySelectorAll("img.home-blinds-scene__image")].every(image=>image.complete),null,{timeout:20000});
   await page.waitForFunction(()=>getComputedStyle(document.querySelector("[data-headline-window]")).visibility==="hidden"&&getComputedStyle(document.querySelector("[data-home-blinds-scene]")).visibility==="visible",null,{timeout:12000});
+  const livePhoto=page.locator("[data-scene-video]");
+  await page.waitForFunction(()=>{const v=document.querySelector("[data-scene-video]");return v&&!v.paused&&v.currentTime>0;},null,{timeout:10000});
+  const liveTime=await livePhoto.evaluate(video=>video.currentTime);
+  await page.waitForTimeout(600);
+  assert.notEqual(await livePhoto.evaluate(video=>video.currentTime),liveTime,"live photo must play real video frames");
   await page.waitForTimeout(1500);
   const scenePosition=()=>document.querySelector("[data-home-blinds-scene]").style.transform;
   const firstPosition=await page.evaluate(scenePosition);
@@ -52,6 +57,7 @@ async function checkHeroAutoplay(browser){
   await page.evaluate(()=>window.scrollTo(0,0));
   await page.waitForTimeout(300);
   const pausedPosition=await page.evaluate(scenePosition);
+  assert(await livePhoto.evaluate(video=>video.paused),"live photo should pause outside the viewport");
   await page.waitForTimeout(1800);
   assert.equal(await page.evaluate(scenePosition),pausedPosition,"lower picture playback should pause outside the viewport");
   await page.route("**/assets/images/home-blinds/act2/4.webp",route=>route.abort());
@@ -93,6 +99,7 @@ async function main(){
       assert.equal(new URL(page.url()).pathname,"/list/","legacy article list must redirect to native theme route");
     }
     if(path==="/"){
+      assert((await page.locator(".profile-card__avatar-img").first().getAttribute("src")).includes("/brand/xiaohuang-avatar.webp"),"profile must use the supplied avatar");
       const faviconLinks=await page.locator('link[rel="icon"]').evaluateAll(els=>els.map(el=>el.getAttribute("href")));
       assert(faviconLinks.some(x=>x?.includes("/brand/07xh-ship.svg")),"site favicon must use the user's own ship");
       assert(!faviconLinks.some(x=>x?.includes("/favicon/")),"upstream favicon must not be linked");
@@ -100,6 +107,7 @@ async function main(){
     const h1=await page.locator("h1").count();
     assert(h1>0,device.name+" "+path+" has no H1");
     if(path==="/dynamic/"){
+     assert((await page.locator(".moment-avatar__img").first().getAttribute("src")).includes("/brand/xiaohuang-avatar.webp"),"dynamic cards must use the supplied avatar too");
      const moments=await page.locator(".moment-item").count();
      assert.equal(moments,4,"migrated moments must be visible");
      const gallery=await page.locator(".moment-images a[data-fancybox]").count();
