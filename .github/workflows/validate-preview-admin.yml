@@ -5,6 +5,7 @@ on:
     paths:
       - "functions/**"
       - "src/lib/preview-admin-auth.js"
+      - "src/content.config.ts"
       - "tests/preview-admin.test.mjs"
       - ".github/workflows/validate-preview-admin.yml"
       - ".github/workflows/deploy-preview.yml"
