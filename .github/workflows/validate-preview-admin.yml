@@ -55,7 +55,7 @@ jobs:
             cat /tmp/space-pages-runtime.log
             exit 1
           fi
-          for route in /admin '/api/admin/content?kind=posts' /api/admin/upload; do
+          for route in /admin '/api/admin/content?kind=posts'; do
             code="$(curl -s --max-time 10 -o /tmp/space-locked.json -w '%{http_code}' "http://127.0.0.1:8788$route")"
             if [ "$code" != 503 ]; then
               echo "Fail-closed guard broken for $route: HTTP $code"
@@ -65,3 +65,10 @@ jobs:
             node -e 'const fs=require("node:fs"); const data=JSON.parse(fs.readFileSync("/tmp/space-locked.json","utf8")); if (!String(data.error || "").includes("未配置")) process.exit(1)'
             echo "PASS: $route denies unconfigured admin access with HTTP 503"
           done
+          code="$(curl -s -X POST --max-time 10 -o /tmp/space-locked.json -w '%{http_code}' http://127.0.0.1:8788/api/admin/upload)"
+          if [ "$code" != 503 ]; then
+            echo "Fail-closed guard broken for POST /api/admin/upload: HTTP $code"
+            cat /tmp/space-pages-runtime.log
+            exit 1
+          fi
+          echo "PASS: POST /api/admin/upload denies unconfigured access with HTTP 503"
