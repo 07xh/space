@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 30
     env:
       SPACE_SITE_URL: https://07xh-space-preview.pages.dev
+      SPACE_WALINE_SERVER_URL: ${{ vars.SPACE_WALINE_SERVER_URL }}
       CI_SKIP_REMOTE_FONTS: '1'
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +36,13 @@ jobs:
         run: pnpm check
       - name: Build static site
         run: pnpm build
+      - name: Validate private Functions before deployment
+        if: ${{ hashFiles('functions/**/*.js') != '' }}
+        run: |
+          node --test tests/preview-admin.test.mjs
+          npx --yes wrangler@4 pages functions build functions \
+            --outdir /tmp/space-preview-functions-preflight \
+            --compatibility-date 2026-11-20
       - name: Ensure preview project exists
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -57,3 +65,32 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name=07xh-space-preview --branch=main
+      - name: Verify deployed private Functions remain protected
+        if: ${{ hashFiles('functions/**/*.js') != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://07xh-space-preview.pages.dev'
+          for route in /admin '/api/admin/content?kind=posts'; do
+            status="$(curl --silent --show-error --max-time 20 \
+              --output /tmp/space-preview-route-check.txt \
+              --write-out '%{http_code}' "${base}${route}")"
+            case "$status" in
+              302|303|307|308|401|403|503)
+                echo "Protected: GET ${route} returned HTTP ${status}" ;;
+              *)
+                echo "::error::Private route ${route} returned unsafe HTTP ${status}"
+                exit 1 ;;
+            esac
+          done
+          status="$(curl --silent --show-error --max-time 20 -X POST \
+            --output /tmp/space-preview-upload-check.txt \
+            --write-out '%{http_code}' "${base}/api/admin/upload")"
+          case "$status" in
+            302|303|307|308|401|403|503)
+              echo "Protected: POST /api/admin/upload returned HTTP ${status}" ;;
+            *)
+              echo "::error::Upload API returned unsafe HTTP ${status}"
+              exit 1 ;;
+          esac
+          curl --fail --silent --show-error --max-time 20 --output /dev/null "${base}/"
