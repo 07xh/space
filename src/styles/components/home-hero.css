@@ -260,6 +260,17 @@ html:has(.home-hero) #top-row {
 	}
 }
 
+/* 视频首帧确认前让原 poster 图片继续显示，避免解码/页面切换时盖出黑帧。 */
+.home-hero__mosaic-live,
+.home-hero__photo-overlay-video {
+	opacity: 0;
+}
+
+.home-hero__mosaic-live.is-playing,
+.home-hero__photo-overlay-video.is-playing {
+	opacity: 1;
+}
+
 /* 图片右上角作者标牌：深色磨砂小片，压在图片内容上所以不随主题反色 */
 .home-hero__photo-author {
 	position: absolute;
