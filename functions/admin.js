@@ -269,12 +269,18 @@ const HTML = String.raw`<!doctype html>
         "。当前是" + (publicNow ? "公开内容" : "草稿") +
         "；预览站仍需等待自动部署完成。");
       const current = filename.value;
-      await request("GET").then((data) => {
+      try {
+        const data = await request("GET");
         files.replaceChildren();
         for (const item of data.items) files.add(new Option(item.path, item.path));
         files.value = current;
-      });
-    } catch (error) { info(error.message, true); }
+      } catch (error) {
+        info("GitHub 提交已经成功（" + (result.commit || "已提交") +
+          "），但文件列表刷新失败：" + error.message +
+          "。请勿重复提交；可单独点击刷新，或检查部署进度。", true);
+      }
+    } catch (error) { info("保存请求未确认成功：" + error.message +
+      "。请先刷新并检查 GitHub 文件状态，避免重复提交。", true); }
     finally { busy(false); }
   }
   async function upload() {
