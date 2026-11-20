@@ -6,7 +6,7 @@ import MomentCard from "@/components/moments/MomentCard.astro";
 import "@/styles/features/moments.css";
 // The rendering follows fqzlr's published MomentCard component and CSS,
 // replacing only its original author's hardcoded items with real 07xh Markdown.
-const entries=(await getCollection("dynamic")).sort((a,b)=>
+const entries=(await getCollection("dynamic", ({data}) => !data.draft)).sort((a,b)=>
   Number(b.data.pinned)-Number(a.data.pinned)||
   b.data.published.getTime()-a.data.published.getTime()
 );
