@@ -93,6 +93,7 @@ const HTML = String.raw`<!doctype html>
   let cleanContent = "";
   let activeKind = kind.value;
   let lastCommit = "";
+  let lastCommitIsPublic = false;
   function hasUnsavedChanges() {
     return Boolean(filename.value) && editor.value !== cleanContent;
   }
@@ -121,11 +122,13 @@ const HTML = String.raw`<!doctype html>
       : match[1] + "\n" + draftLine;
     return text.replace(match[0], "---\n" + front + "\n---");
   }
-  function trackCommit(commit) {
-    lastCommit = /^[a-f0-9]{40}$/i.test(String(commit || "")) ? String(commit).toLowerCase() : "";
-    deploymentStatus.textContent = lastCommit
-      ? "提交 " + lastCommit.slice(0, 8) + " 已写入 GitHub；点击按钮查询 Actions 构建和部署结果。"
-      : "本次会话尚无待检查的 GitHub 提交。";
+  function trackCommit(commit, isPublic = false) {
+    if (!/^[a-f0-9]{40}$/i.test(String(commit || ""))) return;
+    lastCommit = String(commit).toLowerCase();
+    lastCommitIsPublic = isPublic;
+    deploymentStatus.textContent = "提交 " + lastCommit.slice(0, 8) +
+      " 已写入 GitHub（" + (isPublic ? "公开内容" : "草稿或附件") +
+      "）；点击按钮核对 Actions 及预览站部署。";
     deploymentLink.hidden = true;
     deploymentLink.removeAttribute("href");
   }
@@ -151,7 +154,9 @@ const HTML = String.raw`<!doctype html>
         deploy_failed: "构建或 Wrangler 部署未成功，请查看对应运行记录。",
         deployed: "GitHub Actions 已完成 Wrangler 上传；线上页面复测还未确认。",
         verifying: "Wrangler 上传成功，页面回归测试仍在运行。",
-        verified: "Wrangler 上传成功，且部署后的页面回归测试通过。",
+        verified: lastCommitIsPublic
+          ? "Wrangler 上传及页面回归测试均成功；此次公开内容已进入部署产物。"
+          : "Wrangler 上传及页面回归测试均成功；此次是草稿或附件提交，不代表正文已公开。",
         verification_failed: "Wrangler 上传成功，但部署后的页面回归测试未通过。",
       };
       deploymentStatus.textContent = "提交 " + lastCommit.slice(0, 8) + "：" +
@@ -214,7 +219,6 @@ const HTML = String.raw`<!doctype html>
       cleanContent = result.content;
       sha = result.sha;
       isNew = false;
-      trackCommit("");
       showState();
       info("已打开 " + result.path + "；当前版本已记录，保存会检查并发修改。");
     } catch (error) { info(error.message, true); }
@@ -238,7 +242,6 @@ const HTML = String.raw`<!doctype html>
     sha = "";
     cleanContent = "";
     isNew = true;
-    trackCommit("");
     showState();
     info("已创建本地草稿，尚未写入 GitHub；保存后才会触发预览站部署。");
   }
@@ -263,7 +266,7 @@ const HTML = String.raw`<!doctype html>
       cleanContent = content;
       isNew = false;
       sha = result.sha || "";
-      trackCommit(result.commit);
+      trackCommit(result.commit, publicNow);
       showState();
       info("已提交 GitHub：" + (result.commit || "成功") +
         "。当前是" + (publicNow ? "公开内容" : "草稿") +
@@ -303,7 +306,7 @@ const HTML = String.raw`<!doctype html>
       editor.setRangeText(markdown, editor.selectionStart, editor.selectionEnd, "end");
       editor.focus();
       imageInput.value = "";
-      trackCommit(result.commit);
+      trackCommit(result.commit, false);
       info("图片已保存到 07xh/space：" + result.imageUrl +
         "。Markdown 已插入；预览站部署完成后图片才可访问。请保存正文。");
     } catch (error) { info(error.message, true); }
@@ -319,7 +322,7 @@ const HTML = String.raw`<!doctype html>
       editor.value = "";
       cleanContent = "";
       sha = "";
-      trackCommit(result.commit);
+      trackCommit(result.commit, false);
       showState();
       info("已提交删除：" + (result.commit || "成功") + "。");
     } catch (error) { info(error.message, true); }
@@ -342,7 +345,6 @@ const HTML = String.raw`<!doctype html>
     }
     activeKind = kind.value;
     sha = ""; isNew = false; filename.value = ""; editor.value = ""; cleanContent = "";
-    trackCommit("");
     showState();
     refresh();
   });
