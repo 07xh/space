@@ -8,7 +8,7 @@ import {
 } from "../src/lib/preview-admin-auth.js";
 import { onRequest as api } from "../functions/api/admin/content.js";
 import { onRequestGet as editor } from "../functions/admin.js";
-import { onRequestPost as upload } from "../functions/api/admin/upload.js";
+import { onRequest as upload } from "../functions/api/admin/upload.js";
 
 const origin = "https://07xh-space-preview.pages.dev";
 const env = {
@@ -98,6 +98,7 @@ test("missing Access JWT cannot read or write publishing data", async () => {
   try {
     assert.equal((await api({ request: request("/api/admin/content?kind=posts"), env })).status, 401);
     assert.equal((await editor({ request: request("/admin"), env })).status, 401);
+    assert.equal((await upload({ request: request("/api/admin/upload", null, "POST"), env })).status, 401);
   } finally {
     globalThis.fetch = original;
   }
