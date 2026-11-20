@@ -26,6 +26,18 @@ Cloudflare Pages 的 Wrangler 直接上传支持仓库**根目录**下的 `funct
 
 所有内容写入仍先发生在 GitHub（单独的细粒度 Token），随后由 GitHub Actions 触发构建，最后 Wrangler 上传预览站。提交成功不代表部署成功。原有 `SPACE_WALINE_SERVER_URL` 变量继续传递给构建。
 
+## Cloudflare Access 作用域（pages.dev 主站与预览别名不同）
+
+Cloudflare Pages 官方文档指出，项目设置中的 `Enable access policy` 默认只保护预览部署 URL（如随机哈希子域名和预览分支），**不会自动保护 `07xh-space-preview.pages.dev` 主域名**。不能把“预览分支已受到 Access 保护”误认为“正式预览站的管理接口已受保护”。
+
+- 在 Cloudflare Zero Trust → Access → Applications 中，为实际使用的管理主机名和 `/admin`、`/api/admin/*` 路径核对单独 Access 应用与仅允许本人登录的策略；同时审查直接可达的随机哈希部署 URL。
+- Pages Functions 继续独立校验签名 JWT、Audience 与管理员邮箱，即使某个别名漏配 Access 策略，也不得自动放行。
+- 不要为了后台管理直接把**整个公开博客**置于 Access 后面。若将测试分支整站保护，现有匿名公共首页检查需要调整验收标准，不能再以 HTTP 200 作为必达条件。
+- `SPACE_ACCESS_AUD` 必须来自实际保护该入口的 Access 应用；若正式预览主域名与分支使用不同 Audience，应分别验收，不能混用单个值。
+- 管理员账号与 GitHub 写入 Token 尚未配置、验收前，所有私有接口继续 fail-closed；无需更改 GitHub Actions 部署方式。
+
+官方参考：https://developers.cloudflare.com/pages/configuration/preview-deployments/ 及 https://developers.cloudflare.com/pages/platform/known-issues/ 。
+
 ## 部署前的必需配置（只在独立预览 Pages 项目配置）
 
 1. 为独立预览域名的 `/admin` 和 `/api/admin/*` 创建 Cloudflare Access 私有应用和**仅本人**的访问策略，不要给整个网站套管理策略。
