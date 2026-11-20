@@ -180,7 +180,7 @@ test("verified admin can list, create and read only allowlisted content paths", 
     const validTyped = await api({
       request: request("/api/admin/content?kind=posts", token, "POST", {
         kind: "posts", path: "src/content/posts/demo.md",
-        content: '---\\ntitle: "Typed"\\npublished: 2026-11-20\\ndraft: true\\ncomment: false\\npinned: true\\nupdated: 2026-11-20\\ntags: ["学习", "Python"]\\n---\\n\\nContent'.replaceAll("\\\\n", "\\n"),
+        content: '---\ntitle: "Typed"\npublished: 2026-11-20\ndraft: true\ncomment: false\npinned: true\nupdated: 2026-11-20\ntags: ["学习", "Python"]\n---\n\nContent',
       }), env,
     });
     assert.equal(validTyped.status, 201, "Valid optional types should still be accepted");
