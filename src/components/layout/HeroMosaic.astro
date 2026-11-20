@@ -58,13 +58,12 @@ const mosaicStyle = [
 				<video
 					class="home-hero__mosaic-live"
 					data-hero-live="main"
-					src={mainVideo}
+					data-src={mainVideo}
 					poster={desktopImage}
-					autoplay
 					muted
 					loop
 					playsinline
-					preload="metadata"
+					preload="none"
 					aria-hidden="true"
 				/>
 			)}
@@ -98,13 +97,12 @@ const mosaicStyle = [
 						<video
 							class="home-hero__photo-overlay-video"
 							data-hero-live="overlay"
-							src={overlay.video}
+							data-src={overlay.video}
 							poster={overlay.image}
-							autoplay
 							muted
 							loop
 							playsinline
-							preload="metadata"
+							preload="none"
 							aria-hidden="true"
 						/>
 					)}
