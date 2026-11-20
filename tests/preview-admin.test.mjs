@@ -19,8 +19,8 @@ const bytes = new TextEncoder();
 function b64url(data) {
   return Buffer.from(data).toString("base64url");
 }
-async function makeAccessToken(changes = {}) {
-  const keys = await webcrypto.subtle.generateKey({
+async function makeAccessToken(changes = {}, suppliedKeys = null) {
+  const keys = suppliedKeys || await webcrypto.subtle.generateKey({
     name: "RSASSA-PKCS1-v1_5",
     modulusLength: 2048,
     publicExponent: new Uint8Array([1, 0, 1]),
@@ -39,7 +39,7 @@ async function makeAccessToken(changes = {}) {
   const body = b64url(bytes.encode(JSON.stringify(claims)));
   const signed = head + "." + body;
   const signature = await webcrypto.subtle.sign("RSASSA-PKCS1-v1_5", keys.privateKey, bytes.encode(signed));
-  return { token: signed + "." + b64url(new Uint8Array(signature)), jwk };
+  return { token: signed + "." + b64url(new Uint8Array(signature)), jwk, keys };
 }
 function request(path, jwt, method = "GET", payload, headers = {}) {
   const h = { ...(jwt ? { "Cf-Access-Jwt-Assertion": jwt } : {}), ...headers };
@@ -57,7 +57,7 @@ test("admin is fail-closed when identity configuration is missing", async () => 
 });
 
 test("signed Access identity, audience, email and signature are enforced", async () => {
-  const { token, jwk } = await makeAccessToken();
+  const { token, jwk, keys } = await makeAccessToken();
   const original = globalThis.fetch;
   globalThis.fetch = async (url) => {
     assert.equal(url, "https://example.cloudflareaccess.com/cdn-cgi/access/certs");
@@ -65,10 +65,14 @@ test("signed Access identity, audience, email and signature are enforced", async
   };
   try {
     assert.equal(await requirePreviewAdmin(request("/admin", token), env), null);
-    const wrongEmail = await makeAccessToken({ email: "attacker@example.test" });
+    const wrongEmail = await makeAccessToken({ email: "attacker@example.test" }, keys);
     assert.equal((await requirePreviewAdmin(request("/admin", wrongEmail.token), env)).status, 403);
-    const wrongAudience = await makeAccessToken({ aud: ["another-audience"] });
+    const wrongAudience = await makeAccessToken({ aud: ["another-audience"] }, keys);
     assert.equal((await requirePreviewAdmin(request("/admin", wrongAudience.token), env)).status, 403);
+    const expired = await makeAccessToken({ exp: Math.floor(Date.now() / 1000) - 100 }, keys);
+    assert.equal((await requirePreviewAdmin(request("/admin", expired.token), env)).status, 403);
+    const notYetValid = await makeAccessToken({ nbf: Math.floor(Date.now() / 1000) + 600 }, keys);
+    assert.equal((await requirePreviewAdmin(request("/admin", notYetValid.token), env)).status, 403);
     assert.equal((await requirePreviewAdmin(request("/admin", token.slice(0, -5) + "12345"), env)).status, 403);
   } finally {
     globalThis.fetch = original;
