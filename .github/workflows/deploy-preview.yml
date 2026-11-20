@@ -71,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           base='https://07xh-space-preview.pages.dev'
-          for route in /admin '/api/admin/content?kind=posts'; do
+          for route in /admin '/api/admin/content?kind=posts' '/api/admin/deployment?commit=dddddddddddddddddddddddddddddddddddddddd'; do
             status="$(curl --silent --show-error --max-time 20 \
               --output /tmp/space-preview-route-check.txt \
               --write-out '%{http_code}' "${base}${route}")"
