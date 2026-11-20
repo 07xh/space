@@ -68,6 +68,11 @@ const HTML = String.raw`<!doctype html>
       <button class="danger" id="delete" type="button">删除当前文件</button>
     </div>
     <p id="status" role="status" aria-live="polite">已加载编辑器。后台 API 通过 Cloudflare Access 身份验证。</p>
+    <div class="toolbar">
+      <button id="check-deploy" type="button">检查上次提交的部署进度</button>
+      <a id="deploy-link" target="_blank" rel="noopener noreferrer" hidden>查看对应 GitHub Actions</a>
+    </div>
+    <p id="deploy-status" class="hint" aria-live="polite">本次会话尚无待检查的 GitHub 提交。</p>
   </section>
 </main>
 <script nonce="__NONCE__">
@@ -80,11 +85,14 @@ const HTML = String.raw`<!doctype html>
   const editor = get("editor");
   const status = get("status");
   const publishState = get("publish-state");
+  const deploymentStatus = get("deploy-status");
+  const deploymentLink = get("deploy-link");
   let sha = "";
   let isNew = false;
   let isBusy = false;
   let cleanContent = "";
   let activeKind = kind.value;
+  let lastCommit = "";
   function hasUnsavedChanges() {
     return Boolean(filename.value) && editor.value !== cleanContent;
   }
@@ -113,13 +121,62 @@ const HTML = String.raw`<!doctype html>
       : match[1] + "\n" + draftLine;
     return text.replace(match[0], "---\n" + front + "\n---");
   }
+  function trackCommit(commit) {
+    lastCommit = /^[a-f0-9]{40}$/i.test(String(commit || "")) ? String(commit).toLowerCase() : "";
+    deploymentStatus.textContent = lastCommit
+      ? "提交 " + lastCommit.slice(0, 8) + " 已写入 GitHub；点击按钮查询 Actions 构建和部署结果。"
+      : "本次会话尚无待检查的 GitHub 提交。";
+    deploymentLink.hidden = true;
+    deploymentLink.removeAttribute("href");
+  }
+  async function checkDeploy() {
+    if (isBusy) return;
+    if (!lastCommit) {
+      deploymentStatus.textContent = "请先保存文章、动态或上传图片，获取提交编号后再检查。";
+      return;
+    }
+    busy(true);
+    deploymentStatus.textContent = "正在查询提交 " + lastCommit.slice(0, 8) + " 的 GitHub Actions 状态…";
+    try {
+      const response = await fetch("/api/admin/deployment?commit=" + encodeURIComponent(lastCommit), {
+        credentials: "same-origin",
+        headers: { "X-Requested-With": "Space-Admin" },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "HTTP " + response.status);
+      const messages = {
+        not_found: "尚未找到这次提交的部署记录（也可能已超出最近 100 条运行记录）。",
+        queued: "GitHub Actions 已触发，目前排队中。",
+        deploying: "GitHub Actions 正在构建或上传。",
+        deploy_failed: "构建或 Wrangler 部署未成功，请查看对应运行记录。",
+        deployed: "GitHub Actions 已完成 Wrangler 上传；线上页面复测还未确认。",
+        verifying: "Wrangler 上传成功，页面回归测试仍在运行。",
+        verified: "Wrangler 上传成功，且部署后的页面回归测试通过。",
+        verification_failed: "Wrangler 上传成功，但部署后的页面回归测试未通过。",
+      };
+      deploymentStatus.textContent = "提交 " + lastCommit.slice(0, 8) + "：" +
+        (messages[result.phase] || "状态无法识别，请打开 Actions 检查。");
+      const run = result.verify || result.deploy;
+      if (run && /^https:\/\/github\.com\/07xh\/space\/actions\/runs\/\d+$/.test(run.url)) {
+        deploymentLink.href = run.url;
+        deploymentLink.hidden = false;
+      } else {
+        deploymentLink.hidden = true;
+        deploymentLink.removeAttribute("href");
+      }
+    } catch (error) {
+      deploymentStatus.textContent = "部署结果查询失败：" + error.message;
+    } finally {
+      busy(false);
+    }
+  }
   function info(message, isError = false) {
     status.textContent = message;
     status.dataset.error = String(isError);
   }
   function busy(next) {
     isBusy = next;
-    for (const id of ["kind","files","refresh","new","load","save","publish","delete","upload","image-file"]) get(id).disabled = next;
+    for (const id of ["kind","files","refresh","new","load","save","publish","delete","upload","image-file","check-deploy"]) get(id).disabled = next;
   }
   async function request(method, path, body) {
     const options = { method, credentials: "same-origin", headers: { "X-Requested-With": "Space-Admin" } };
@@ -157,6 +214,7 @@ const HTML = String.raw`<!doctype html>
       cleanContent = result.content;
       sha = result.sha;
       isNew = false;
+      trackCommit("");
       showState();
       info("已打开 " + result.path + "；当前版本已记录，保存会检查并发修改。");
     } catch (error) { info(error.message, true); }
@@ -180,6 +238,7 @@ const HTML = String.raw`<!doctype html>
     sha = "";
     cleanContent = "";
     isNew = true;
+    trackCommit("");
     showState();
     info("已创建本地草稿，尚未写入 GitHub；保存后才会触发预览站部署。");
   }
@@ -204,6 +263,7 @@ const HTML = String.raw`<!doctype html>
       cleanContent = content;
       isNew = false;
       sha = result.sha || "";
+      trackCommit(result.commit);
       showState();
       info("已提交 GitHub：" + (result.commit || "成功") +
         "。当前是" + (publicNow ? "公开内容" : "草稿") +
@@ -237,6 +297,7 @@ const HTML = String.raw`<!doctype html>
       editor.setRangeText(markdown, editor.selectionStart, editor.selectionEnd, "end");
       editor.focus();
       imageInput.value = "";
+      trackCommit(result.commit);
       info("图片已保存到 07xh/space：" + result.imageUrl +
         "。Markdown 已插入；预览站部署完成后图片才可访问。请保存正文。");
     } catch (error) { info(error.message, true); }
@@ -252,6 +313,7 @@ const HTML = String.raw`<!doctype html>
       editor.value = "";
       cleanContent = "";
       sha = "";
+      trackCommit(result.commit);
       showState();
       info("已提交删除：" + (result.commit || "成功") + "。");
     } catch (error) { info(error.message, true); }
@@ -260,6 +322,7 @@ const HTML = String.raw`<!doctype html>
   }
   editor.addEventListener("input", showState);
   get("refresh").addEventListener("click", refresh);
+  get("check-deploy").addEventListener("click", checkDeploy);
   get("new").addEventListener("click", create);
   get("load").addEventListener("click", load);
   get("upload").addEventListener("click", upload);
@@ -273,6 +336,7 @@ const HTML = String.raw`<!doctype html>
     }
     activeKind = kind.value;
     sha = ""; isNew = false; filename.value = ""; editor.value = ""; cleanContent = "";
+    trackCommit("");
     showState();
     refresh();
   });
