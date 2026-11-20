@@ -129,7 +129,8 @@ async function checkHeroAutoplay(browser){
 }
 async function main(){
  const staticAssets=["/brand/07xh-ship.svg","/project-media/dorm-os-home.webp","/project-media/dorm-os-tablet.webp","/project-media/draftai-projection.webp"];
- const browser=await chromium.launch({headless:true});
+ // Google Chrome includes H.264 decoding; Playwright bundled Chromium does not.
+ const browser=await chromium.launch({headless:true,channel:"chrome"});
  const results=[];
  try{
   await checkHeroAutoplay(browser);
