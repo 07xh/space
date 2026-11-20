@@ -253,7 +253,8 @@ html:has(.home-hero) #top-row {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.home-hero__mosaic-live,
+	/* Stronger than the normal playback display rule declared below. */
+	.home-hero__mosaic-complete .home-hero__mosaic-live,
 	.home-hero__photo-overlay-video {
 		display: none;
 	}

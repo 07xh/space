@@ -37,6 +37,43 @@ async function checkHeroAutoplay(browser){
   assert(await page.evaluate(isAssembled),"resizing must preserve the assembled picture");
   assert((await page.locator("[data-hero-mosaic-complete] img").getAttribute("src")).includes("home-main-poster.webp"),"hero must use the supplied main picture");
   assert((await page.locator(".home-hero__photo-overlay-image").getAttribute("src")).includes("home-overlay-poster.webp"),"hero overlay must use the supplied second picture");
+  // Verify both restored Live Photos actually play, not merely reference MP4 paths.
+  for (const [slot, path] of [["main", "/brand/home-main-live.mp4"], ["overlay", "/brand/home-overlay-live.mp4"]]) {
+   const selector = `video[data-hero-live="${slot}"]`;
+   const video = page.locator(selector);
+   assert.equal(await video.count(), 1, slot + ": one live video is required");
+   assert.equal(await video.getAttribute("src"), path, slot + ": incorrect MP4 asset");
+   assert.equal(await video.getAttribute("muted"), "", slot + ": autoplay must be muted");
+   assert.equal(await video.getAttribute("playsinline"), "", slot + ": video must play inline");
+   try {
+    await page.waitForFunction((sel) => {
+     const v = document.querySelector(sel);
+     return v && !v.paused && v.readyState >= 2 && v.currentTime > 0.1;
+    }, selector, {timeout: 15000});
+   } catch (err) {
+    const state = await video.evaluate(v => ({
+     currentSrc: v.currentSrc, readyState: v.readyState, networkState: v.networkState,
+     paused: v.paused, currentTime: v.currentTime, duration: v.duration,
+     muted: v.muted, autoplay: v.autoplay, errorCode: v.error?.code,
+     errorMessage: v.error?.message,
+     videoWidth: v.videoWidth, videoHeight: v.videoHeight,
+     styleDisplay: getComputedStyle(v).display,
+     styleVisibility: getComputedStyle(v).visibility,
+     canPlayH264: v.canPlayType('video/mp4; codecs="avc1.64001f"'),
+     mediaError: v.error ? String(v.error.message) : null
+    }));
+    throw new Error(slot + ": playback verification failed: " + JSON.stringify(state) + "; " + err.message);
+   }
+   const before = await video.evaluate(v => v.currentTime);
+   await page.waitForTimeout(500);
+   const after = await video.evaluate(v => v.currentTime);
+   assert(Math.abs(after - before) > 0.08, slot + ": video frames must advance");
+  }
+  await page.emulateMedia({reducedMotion: "reduce"});
+  for (const slot of ["main", "overlay"]) {
+   assert.equal(await page.locator(`video[data-hero-live="${slot}"]`).evaluate(v => getComputedStyle(v).display), "none", slot + ": honor reduced motion and show poster fallback");
+  }
+  await page.emulateMedia({reducedMotion: "no-preference"});
   await page.screenshot({path:output+"/desktop-hero-autoplay.png",fullPage:false});
   await page.waitForFunction(()=>document.querySelector("#home-blinds")?.dataset.homeBlindsReady==="ready",null,{timeout:20000});
   const scrollToOpening=()=>window.scrollTo(0,document.querySelector("#home-blinds").getBoundingClientRect().top+window.scrollY);
@@ -92,7 +129,8 @@ async function checkHeroAutoplay(browser){
 }
 async function main(){
  const staticAssets=["/brand/07xh-ship.svg","/project-media/dorm-os-home.webp","/project-media/dorm-os-tablet.webp","/project-media/draftai-projection.webp"];
- const browser=await chromium.launch({headless:true});
+ // Google Chrome includes H.264 decoding; Playwright bundled Chromium does not.
+ const browser=await chromium.launch({headless:true,channel:"chrome"});
  const results=[];
  try{
   await checkHeroAutoplay(browser);
