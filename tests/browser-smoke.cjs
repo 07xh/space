@@ -45,10 +45,25 @@ async function checkHeroAutoplay(browser){
    assert.equal(await video.getAttribute("src"), path, slot + ": incorrect MP4 asset");
    assert.equal(await video.getAttribute("muted"), "", slot + ": autoplay must be muted");
    assert.equal(await video.getAttribute("playsinline"), "", slot + ": video must play inline");
-   await page.waitForFunction((sel) => {
-    const v = document.querySelector(sel);
-    return v && !v.paused && v.readyState >= 2 && v.currentTime > 0.1;
-   }, selector, {timeout: 15000});
+   try {
+    await page.waitForFunction((sel) => {
+     const v = document.querySelector(sel);
+     return v && !v.paused && v.readyState >= 2 && v.currentTime > 0.1;
+    }, selector, {timeout: 15000});
+   } catch (err) {
+    const state = await video.evaluate(v => ({
+     currentSrc: v.currentSrc, readyState: v.readyState, networkState: v.networkState,
+     paused: v.paused, currentTime: v.currentTime, duration: v.duration,
+     muted: v.muted, autoplay: v.autoplay, errorCode: v.error?.code,
+     errorMessage: v.error?.message,
+     videoWidth: v.videoWidth, videoHeight: v.videoHeight,
+     styleDisplay: getComputedStyle(v).display,
+     styleVisibility: getComputedStyle(v).visibility,
+     canPlayH264: v.canPlayType('video/mp4; codecs="avc1.64001f"'),
+     mediaError: v.error ? String(v.error.message) : null
+    }));
+    throw new Error(slot + ": playback verification failed: " + JSON.stringify(state) + "; " + err.message);
+   }
    const before = await video.evaluate(v => v.currentTime);
    await page.waitForTimeout(500);
    const after = await video.evaluate(v => v.currentTime);
