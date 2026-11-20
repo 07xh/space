@@ -1,8 +1,21 @@
 import type { CommentConfig } from "../types/config";
 
+// 仅在独立预览构建明确配置可用的 HTTPS Waline 后端时启用评论。
+// 没有服务端和持久化数据库时保持 none，避免显示无法提交的评论框。
+const configuredWalineURL = String(process.env.SPACE_WALINE_SERVER_URL || "").trim();
+const walineServerURL = (() => {
+	try {
+		const endpoint = new URL(configuredWalineURL);
+		if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password) return "";
+		return endpoint.href.replace(/\/$/, "");
+	} catch {
+		return "";
+	}
+})();
+
 export const commentConfig: CommentConfig = {
 	// 评论系统类型: none, twikoo, waline, giscus, disqus, artalk，默认为none，即不启用评论系统
-	type: "none",
+	type: walineServerURL ? "waline" : "none",
 
 	//twikoo评论系统配置，版本1.7.4
 	twikoo: {
@@ -16,7 +29,7 @@ export const commentConfig: CommentConfig = {
 	//waline评论系统配置
 	waline: {
 		// waline 后端服务地址
-		serverURL: "",
+		serverURL: walineServerURL,
 		// 设置 Waline 评论系统语言
 		lang: "zh-CN",
 		// 设置 Waline 评论系统表情地址

@@ -48,7 +48,7 @@ const projectsCollection = defineCollection({
 });
 const dynamicCollection = defineCollection({
   loader: glob({ pattern:"**/*.md",base:"./src/content/dynamic" }),
-  schema: z.object({published:z.date(),pinned:z.boolean().optional().default(false),location:z.string().optional().default("")}).passthrough(),
+  schema: z.object({published:z.date(),draft:z.boolean().optional().default(false),pinned:z.boolean().optional().default(false),location:z.string().optional().default("")}).passthrough(),
 });
 
 const specCollection = defineCollection({
