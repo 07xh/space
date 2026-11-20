@@ -240,7 +240,7 @@ test("private editor includes explicit draft/publish controls and compilable UI 
     assert.match(html, /id="publish"/);
     assert.match(html, /id="check-deploy"/);
     assert.match(html, /\/api\/admin\/deployment\?commit=/);
-    assert.match(html, /发布后的页面回归测试通过/);
+    assert.match(html, /部署后的页面回归测试通过/);
     assert.match(html, /draft: true/);
     assert.match(html, /发布到预览站/);
     const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)];
