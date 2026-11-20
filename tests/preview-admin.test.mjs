@@ -252,6 +252,11 @@ test("private editor includes explicit draft/publish controls and compilable UI 
     const html = await response.text();
     assert.match(html, /id="publish"/);
     assert.match(html, /id="check-deploy"/);
+    assert.match(html, /GitHub 已确认删除/);
+    assert.match(html, /删除请求未确认成功/);
+    assert.match(html, /但文件列表刷新失败/);
+    assert.equal(html.includes("    await refresh();\\n  }\\n  editor.addEventListener"), false,
+      "Deletion must not unconditionally refresh and erase failed-delete errors");
     assert.match(html, /"check-deploy","editor"/, "Editor must be disabled while saving");
     assert.match(html, /now\.getFullYear\(\)/, "Draft date must use browser-local calendar");
     assert.match(html, /\/api\/admin\/deployment\?commit=/);
@@ -341,6 +346,44 @@ test("commit receipt is Access-protected, validates SHA and reads no write secre
     assert.equal((await phase()).phase, "verified");
     deployRun.conclusion = "failure";
     assert.equal((await phase()).phase, "deploy_failed");
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+
+test("delete only targets allowlisted content; GitHub SHA conflicts do not report success", async () => {
+  const { token, jwk } = await makeAccessToken();
+  const original = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    if (String(url).endsWith("/cdn-cgi/access/certs")) return Response.json({ keys: [jwk] });
+    assert.equal(String(url), "https://api.github.com/repos/07xh/space/contents/src/content/posts/delete-check.md");
+    assert.equal(options.method, "DELETE");
+    const body = JSON.parse(options.body);
+    calls.push(body);
+    assert.equal(body.branch, "main");
+    if (body.sha === "f".repeat(40)) {
+      return Response.json({ message: "Conflict" }, { status: 409 });
+    }
+    return Response.json({ commit: { sha: "c".repeat(40) } }, { status: 200 });
+  };
+  try {
+    const post = (path, sha) => request("/api/admin/content?kind=posts", token, "DELETE", {
+      kind: "posts", path, sha,
+    });
+    assert.equal((await api({ request: post("src/content/projects/keep.md", "a".repeat(40)), env })).status, 400);
+    assert.equal((await api({ request: post("src/content/posts/delete-check.md", ""), env })).status, 409);
+    assert.equal(calls.length, 0, "Invalid requests must never write to GitHub");
+    const conflict = await api({ request: post("src/content/posts/delete-check.md", "f".repeat(40)), env });
+    assert.equal(conflict.status, 409);
+    assert.equal((await conflict.json()).ok, undefined);
+    const removed = await api({ request: post("src/content/posts/delete-check.md", "a".repeat(40)), env });
+    assert.equal(removed.status, 200);
+    const data = await removed.json();
+    assert.equal(data.ok, true);
+    assert.equal(data.commit, "c".repeat(40));
+    assert.equal(calls.length, 2);
   } finally {
     globalThis.fetch = original;
   }
