@@ -42,9 +42,14 @@ function encode(bytes) {
   return btoa(binary);
 }
 
-export async function onRequestPost({ request, env }) {
+// Register an all-method route to ensure direct-upload Pages deployments
+// never fall back to a static 404 for the upload URL.
+export async function onRequest({ request, env }) {
   const denied = await requirePreviewAdmin(request, env);
   if (denied) return denied;
+  if (request.method !== "POST") {
+    return privateJson({ error: "图片接口只接受 POST 请求。" }, 405);
+  }
   const token = String(env.SPACE_GITHUB_CONTENTS_TOKEN || "").trim();
   if (!token) return privateJson({ error: "后台尚未配置 GitHub 写入密钥。" }, 503);
 
