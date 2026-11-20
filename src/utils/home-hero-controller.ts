@@ -239,6 +239,17 @@ export function mountHomeHero(): () => void {
 	);
 	const mosaicGrid = hero.querySelector<HTMLElement>("[data-hero-mosaic-grid]");
 	const mosaicImage = mosaicComplete?.querySelector("img");
+	// 拼图过程中始终显示静态封面，只在完成的照片层开始播放实况。
+	const heroLiveVideos = [
+		{
+			element: hero.querySelector<HTMLVideoElement>('[data-hero-live-video="main"]'),
+			startTime: PHOTO_SETTLE_TIME,
+		},
+		{
+			element: hero.querySelector<HTMLVideoElement>('[data-hero-live-video="overlay"]'),
+			startTime: INTRO_REVEAL_TIME,
+		},
+	];
 	const backdrop = hero.querySelector<HTMLElement>(".home-hero__backdrop");
 	const guideRows = hero.querySelector<SVGSVGElement>(".home-guide__guide--h");
 	const guideColumns = hero.querySelector<SVGSVGElement>(
@@ -313,6 +324,36 @@ export function mountHomeHero(): () => void {
 	 */
 	let heroInView = true;
 	let rainWanted = false;
+	let currentHeroTime = 0;
+	const pendingLivePlays = new WeakSet<HTMLVideoElement>();
+	const syncLivePhotos = () => {
+		for (const { element: video, startTime } of heroLiveVideos) {
+			if (!video) continue;
+			const shouldPlay =
+				!disposed &&
+				heroInView &&
+				document.visibilityState === "visible" &&
+				!reducedMotionQuery.matches &&
+				currentHeroTime >= startTime &&
+				video.style.visibility !== "hidden";
+			if (!shouldPlay) {
+				video.pause();
+				continue;
+			}
+			if (video.paused && !pendingLivePlays.has(video)) {
+				pendingLivePlays.add(video);
+				void video.play().then(() => {
+					pendingLivePlays.delete(video);
+					if (!disposed) video.style.opacity = "1";
+				}).catch((error: unknown) => {
+					pendingLivePlays.delete(video);
+					// 进入后台时取消播放是正常状态，不应隐藏有效的视频素材。
+					if (error instanceof DOMException && error.name === "AbortError") return;
+					if (!disposed) video.style.visibility = "hidden";
+				});
+			}
+		}
+	};
 	const syncRain = () => {
 		rain.setActive(rainWanted && heroInView && !reducedMotionQuery.matches);
 	};
@@ -320,15 +361,21 @@ export function mountHomeHero(): () => void {
 		(entries) => {
 			for (const entry of entries) heroInView = entry.isIntersecting;
 			syncRain();
+			syncLivePhotos();
 		},
 		// 留一点提前量，滚回首屏时雨已经在跑，不会看到空档
 		{ rootMargin: "15% 0px" },
 	);
 	heroVisibility.observe(hero);
+	document.addEventListener("visibilitychange", syncLivePhotos, {
+		signal: abortController.signal,
+	});
 
 	const updateSceneState = (progress: number) => {
 		if (disposed) return;
 		const timelineTime = progress * (timeline?.duration() ?? 1);
+		currentHeroTime = timelineTime;
+		syncLivePhotos();
 		const rainActive = timelineTime >= RAIN_ACTIVATE_TIME;
 		const dialogueVisible = timelineTime >= DIALOGUE_REVEAL_TIME;
 		const greetingWanted = timelineTime >= GREETING_REVEAL_TIME;
@@ -1071,6 +1118,7 @@ export function mountHomeHero(): () => void {
 		// 合并刷新是跨层共享的，不能在 Hero 单独卸载时取消其它层的请求。
 		window.clearTimeout(flyLayoutTimer);
 		heroVisibility.disconnect();
+		for (const { element: video } of heroLiveVideos) video?.pause();
 		rain.destroy();
 		dialogue.destroy();
 		abortController.abort();
