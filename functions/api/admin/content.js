@@ -26,6 +26,11 @@ function collection(kind) {
   return null;
 }
 
+function validCalendarDate(value) {
+  const date = new Date(value + "T00:00:00Z");
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 function validateMarkdown(kind, text) {
   if (typeof text !== "string" || text.length < 24 ||
       new TextEncoder().encode(text).length > 500_000 ||
@@ -33,8 +38,28 @@ function validateMarkdown(kind, text) {
   const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
   if (!match) return false;
   const front = match[1];
-  if (!/^published:\s*(?:["'])?\d{4}-\d{2}-\d{2}/m.test(front)) return false;
-  if (kind === "posts" && !/^title:\s*\S.+$/m.test(front)) return false;
+
+  // Astro's published field is a real date: reject values that only look like
+  // ISO dates but would break a production build (e.g. 2026-02-31).
+  const published = [...front.matchAll(/^published:\s*(.*?)\s*$/gm)];
+  if (published.length !== 1) return false;
+  const stamp = published[0][1].replace(/^["']|["']$/g, "");
+  const dateAndTime = stamp.match(/^(\d{4}-\d{2}-\d{2})(?:[ T]([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?)?$/);
+  if (!dateAndTime || !validCalendarDate(dateAndTime[1])) return false;
+
+  // Both article and dynamic collection schemas use a boolean draft flag.
+  const draft = [...front.matchAll(/^draft:\s*(.*?)\s*$/gm)];
+  if (draft.length > 1 || (draft.length && !/^(true|false)$/.test(draft[0][1]))) return false;
+  if (kind === "posts") {
+    const title = [...front.matchAll(/^title:\s*(.*?)\s*$/gm)];
+    if (title.length !== 1) return false;
+    const value = title[0][1].replace(/^["']|["']$/g, "").trim();
+    if (!value || /^[[{]/.test(value)) return false;
+  }
+  if (kind === "dynamic") {
+    const pinned = [...front.matchAll(/^pinned:\s*(.*?)\s*$/gm)];
+    if (pinned.length > 1 || (pinned.length && !/^(true|false)$/.test(pinned[0][1]))) return false;
+  }
   return true;
 }
 
