@@ -83,12 +83,20 @@ async function inspect(page, item, device) {
       item.path + " is missing repository or download links");
   }
   if (item.kind === "post") {
-    const body = page.locator(".markdown-content").first();
-    await body.waitFor({ state: "attached", timeout: 18000 });
-    await body.locator("details").evaluateAll((els) => els.forEach((el) => { el.open = true; }));
-    const count = await body.locator("img:not(.external-link__favicon)").count();
-    if (item.minImages) {
-      assert(count >= item.minImages, item.path + " expected " + item.minImages + " article illustrations, got " + count);
+    const protectedArticle = page.locator("#encrypted-container");
+    if (await protectedArticle.count()) {
+      const lock = protectedArticle.locator("#password-form");
+      await lock.waitFor({ state: "visible", timeout: 12000 });
+      assert(await lock.locator('input[type="password"]').count() === 1,
+        item.path + " missing protected article password control");
+    } else {
+      const body = page.locator(".markdown-content").first();
+      await body.waitFor({ state: "attached", timeout: 18000 });
+      await body.locator("details").evaluateAll((els) => els.forEach((el) => { el.open = true; }));
+      const count = await body.locator("img:not(.external-link__favicon)").count();
+      if (item.minImages) {
+        assert(count >= item.minImages, item.path + " expected " + item.minImages + " article illustrations, got " + count);
+      }
     }
   }
 
