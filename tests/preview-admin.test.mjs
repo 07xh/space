@@ -252,6 +252,8 @@ test("private editor includes explicit draft/publish controls and compilable UI 
     const html = await response.text();
     assert.match(html, /id="publish"/);
     assert.match(html, /id="check-deploy"/);
+    assert.match(html, /"check-deploy","editor"/, "Editor must be disabled while saving");
+    assert.match(html, /now\.getFullYear\(\)/, "Draft date must use browser-local calendar");
     assert.match(html, /\/api\/admin\/deployment\?commit=/);
     assert.match(html, /lastCommitIsPublic/);
     assert.match(html, /草稿或附件提交，不代表正文已公开/);
