@@ -37,6 +37,28 @@ async function checkHeroAutoplay(browser){
   assert(await page.evaluate(isAssembled),"resizing must preserve the assembled picture");
   assert((await page.locator("[data-hero-mosaic-complete] img").getAttribute("src")).includes("home-main-poster.webp"),"hero must use the supplied main picture");
   assert((await page.locator(".home-hero__photo-overlay-image").getAttribute("src")).includes("home-overlay-poster.webp"),"hero overlay must use the supplied second picture");
+  const mainLive=page.locator('[data-hero-live-video="main"]');
+  const overlayLive=page.locator('[data-hero-live-video="overlay"]');
+  assert.equal(await mainLive.count(),1,"hero should retain the original main live photo");
+  assert.equal(await overlayLive.count(),1,"hero should retain the original overlay live photo");
+  assert.equal(await mainLive.getAttribute("src"),"/brand/home-main-live.mp4","main live clip path must be stable");
+  assert.equal(await overlayLive.getAttribute("src"),"/brand/home-overlay-live.mp4","overlay live clip path must be stable");
+  for(const video of [mainLive,overlayLive]){
+   assert(await video.evaluate(v=>v.muted&&v.loop&&v.playsInline),"live photo playback must be muted, looping and inline");
+  }
+  // Legacy still images remain visible until the exact uploaded MP4 resources are available.
+  // Once the two original clips have been uploaded, require actual moving video frames.
+  const mediaPaths=["/brand/home-main-live.mp4","/brand/home-overlay-live.mp4"];
+  const mediaStatus=await Promise.all(mediaPaths.map(async path=>(await page.request.get(base+path)).status()));
+  if(mediaStatus.every(status=>status===200)){
+   await page.waitForFunction(()=>[...document.querySelectorAll("[data-hero-live-video]")].every(v=>v.currentTime>0&&!v.paused),null,{timeout:10000});
+   const before=await mainLive.evaluate(v=>v.currentTime);
+   await page.waitForTimeout(600);
+   assert((await mainLive.evaluate(v=>v.currentTime))>before,"main hero live photo must advance real frames");
+  }else{
+   assert(mediaStatus.every(status=>status===404),"both hero live resources must be uploaded together");
+   console.log("Hero live clips awaiting original MP4 upload; static posters remain available.");
+  }
   await page.screenshot({path:output+"/desktop-hero-autoplay.png",fullPage:false});
   await page.waitForFunction(()=>document.querySelector("#home-blinds")?.dataset.homeBlindsReady==="ready",null,{timeout:20000});
   const scrollToOpening=()=>window.scrollTo(0,document.querySelector("#home-blinds").getBoundingClientRect().top+window.scrollY);

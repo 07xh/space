@@ -57,10 +57,12 @@ export const homeConfig: HomeConfig = {
 		photo: {
 			main: {
 				image: "/brand/home-main-poster.webp",
+				video: "/brand/home-main-live.mp4",
 				author: "",
 			},
 			overlay: {
 				image: "/brand/home-overlay-poster.webp",
+				video: "/brand/home-overlay-live.mp4",
 				author: "",
 			},
 			intro: {

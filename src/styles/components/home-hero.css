@@ -268,11 +268,35 @@ html:has(.home-hero) #top-row {
 	will-change: opacity;
 }
 
+.home-hero__mosaic-complete picture {
+	display: block;
+}
+
 .home-hero__mosaic-complete img {
 	display: block;
 	width: 100%;
 	height: auto;
 }
+/* 实况视频只覆盖图片内容，不改变拼图定位、入场动画或相框尺寸。
+   视频无法解码时隐藏视频层，底下的原静态封面始终可见。 */
+.home-hero__live-video {
+	position: absolute;
+	inset: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	opacity: 0;
+	transition: opacity 180ms ease;
+	pointer-events: none;
+}
+
+.home-hero__live-video--overlay {
+	box-sizing: border-box;
+	border: 0.4rem solid var(--home-hero-photo-edge);
+	border-radius: 0.9rem;
+}
+
 
 .home-hero__rain {
 	z-index: 20;
