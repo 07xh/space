@@ -58,7 +58,10 @@ const HTML = String.raw`<!doctype html>
     <input id="filename" readonly placeholder="先选择文件或新建">
     <label for="editor">Frontmatter 与 Markdown</label>
     <textarea id="editor" spellcheck="false" aria-label="Markdown 文本编辑器" placeholder="先从左侧打开文件"></textarea>
+    <label for="image-file">文章图片（PNG、JPEG、WebP、GIF，不超过 4 MiB）</label>
+    <input id="image-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" aria-label="选择图片">
     <div class="toolbar">
+      <button id="upload" type="button">上传图片并插入 Markdown</button>
       <button class="primary" id="save" type="button">保存至预览仓库</button>
       <button class="danger" id="delete" type="button">删除当前文件</button>
     </div>
@@ -83,7 +86,7 @@ const HTML = String.raw`<!doctype html>
   }
   function busy(next) {
     isBusy = next;
-    for (const id of ["kind","files","refresh","new","load","save","delete"]) get(id).disabled = next;
+    for (const id of ["kind","files","refresh","new","load","save","delete","upload","image-file"]) get(id).disabled = next;
   }
   async function request(method, path, body) {
     const options = { method, credentials: "same-origin", headers: { "X-Requested-With": "Space-Admin" } };
@@ -163,6 +166,31 @@ const HTML = String.raw`<!doctype html>
     } catch (error) { info(error.message, true); }
     finally { busy(false); }
   }
+  async function upload() {
+    if (isBusy || !filename.value) return info("请先新建或打开内容，再上传图片。", true);
+    const imageInput = get("image-file");
+    const image = imageInput.files?.[0];
+    if (!image) return info("请先选择一张图片。", true);
+    if (image.size > 4 * 1024 * 1024) return info("图片不能超过 4 MiB。", true);
+    busy(true);
+    try {
+      const data = new FormData();
+      data.append("file", image);
+      const response = await fetch("/api/admin/upload", {
+        method: "POST", credentials: "same-origin",
+        headers: { "X-Requested-With": "Space-Admin" }, body: data,
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "图片上传失败（HTTP " + response.status + "）");
+      const markdown = "![图片](" + result.imageUrl + ")";
+      editor.setRangeText(markdown, editor.selectionStart, editor.selectionEnd, "end");
+      editor.focus();
+      imageInput.value = "";
+      info("图片已保存到 07xh/space：" + result.imageUrl +
+        "。Markdown 已插入；预览站部署完成后图片才可访问。请保存正文。");
+    } catch (error) { info(error.message, true); }
+    finally { busy(false); }
+  }
   async function remove() {
     if (isBusy || isNew || !filename.value || !sha) return;
     if (!confirm("确定永久删除 " + filename.value + "？此操作会提交到新博客仓库。")) return;
@@ -180,6 +208,7 @@ const HTML = String.raw`<!doctype html>
   get("refresh").addEventListener("click", refresh);
   get("new").addEventListener("click", create);
   get("load").addEventListener("click", load);
+  get("upload").addEventListener("click", upload);
   get("save").addEventListener("click", save);
   get("delete").addEventListener("click", remove);
   kind.addEventListener("change", () => {
