@@ -57,6 +57,18 @@ Cloudflare Pages 官方文档指出，项目设置中的 `Enable access policy` 
 - 再次执行新预览站的真实浏览器验收（文章、项目、图片、移动端），确认新增 Functions 不影响公共静态页面。
 - 核验是否生成了独立部署日志；不要把 `GitHub PUT 201` 误称为已经部署完成。
 
+## Markdown 提交前的防构建失败校验
+
+在向 GitHub 正式发出 Contents 写入请求前，后台检查：
+
+- `published` 必须是合法日历日期；可选的 `updated` 同样不得使用不存在的日期。
+- 文章 `title` 必填且不能是数组或对象；`tags` 应使用数组形式；`category`、`description` 等常用文本字段不能是数组或对象。
+- `draft`、`pinned`、`comment` 和 `wikiExclude` 等应为布尔值；拒绝重复的顶层 YAML 字段。
+- **新建内容必须显式声明 `draft: true` 或 `draft: false`**，防止省略 `draft` 时按 Astro 默认值意外公开。已有文件允许保留旧的缺省字段。
+- 异常字段会在提交前返回 HTTP 400，不会触发 GitHub 写入；单元测试覆盖合法字段和上述常见错误。
+
+这是对常见类型与日期问题的前置门禁，并非完整 YAML / MDX 语法校验。真正的构建正确性仍以 GitHub Actions 执行 Astro 检查及构建成功为准；若构建失败，原有 Pages 部署不应被覆盖。
+
 ## 发布完成后的可核验状态（新增）
 
 编辑器在新建、修改、删除内容和上传图片得到 GitHub commit SHA 后，提供 **“检查上次提交的部署进度”** 按钮（按需查询，不自动高频轮询）。状态查询经过同一 Cloudflare Access JWT 验证，不能匿名读取。
