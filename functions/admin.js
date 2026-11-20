@@ -564,7 +564,7 @@ export async function onRequestGet({ request, env }) {
       "x-frame-options": "DENY",
       "content-security-policy": "default-src 'none'; style-src 'nonce-" + nonce +
         "'; script-src 'nonce-" + nonce +
-        "'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+        "'; connect-src 'self'; img-src 'self' data: blob: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
     },
   });
 }
