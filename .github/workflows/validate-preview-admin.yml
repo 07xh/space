@@ -7,6 +7,8 @@ on:
       - "src/lib/preview-admin-auth.js"
       - "tests/preview-admin.test.mjs"
       - ".github/workflows/validate-preview-admin.yml"
+      - ".github/workflows/deploy-preview.yml"
+      - "docs/preview-publishing-admin.md"
   workflow_dispatch:
 
 permissions:
