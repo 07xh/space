@@ -254,6 +254,9 @@ test("private editor includes explicit draft/publish controls and compilable UI 
     assert.match(html, /id="check-deploy"/);
     assert.match(html, /id="toggle-preview"/);
     assert.match(html, /id="preview-pane"/);
+    assert.match(html, /URL\.createObjectURL\(image\)/);
+    assert.match(html, /localImagePreviews\.get\(matched\[2\]\)/);
+
     assert.match(html, /data-format="bold"/);
     assert.match(html, /data-format="heading"/);
     assert.match(html, /data-format="list"/);
