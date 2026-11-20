@@ -113,6 +113,11 @@ const HTML = String.raw`<!doctype html>
   let activeKind = kind.value;
   let lastCommit = "";
   let lastCommitIsPublic = false;
+  const localImagePreviews = new Map();
+  window.addEventListener("pagehide", () => {
+    for (const blobUrl of localImagePreviews.values()) URL.revokeObjectURL(blobUrl);
+    localImagePreviews.clear();
+  });
   function hasUnsavedChanges() {
     return Boolean(filename.value) && editor.value !== cleanContent;
   }
@@ -165,7 +170,8 @@ const HTML = String.raw`<!doctype html>
       if (matched.index > cursor) node.append(document.createTextNode(text.slice(cursor, matched.index)));
       if (matched[2]) {
         const img = document.createElement("img");
-        img.src = matched[2]; img.alt = matched[1] || "文章图片"; img.loading = "lazy";
+        img.src = localImagePreviews.get(matched[2]) || matched[2];
+        img.alt = matched[1] || "文章图片"; img.loading = "lazy";
         img.referrerPolicy = "no-referrer";
         node.append(img);
       } else if (matched[4]) {
@@ -427,6 +433,18 @@ const HTML = String.raw`<!doctype html>
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "图片上传失败（HTTP " + response.status + "）");
       const markdown = "![图片](" + result.imageUrl + ")";
+      // Before Pages deploys /uploads/, the editor can display the selected
+      // local image without waiting for GitHub Actions or changing the URL.
+      if (/^\/uploads\/[A-Za-z0-9_-]+\.(png|jpe?g|webp|gif)$/.test(result.imageUrl)) {
+        const previous = localImagePreviews.get(result.imageUrl);
+        if (previous) URL.revokeObjectURL(previous);
+        if (localImagePreviews.size >= 16) {
+          const oldest = localImagePreviews.keys().next().value;
+          URL.revokeObjectURL(localImagePreviews.get(oldest));
+          localImagePreviews.delete(oldest);
+        }
+        localImagePreviews.set(result.imageUrl, URL.createObjectURL(image));
+      }
       editor.setRangeText(markdown, editor.selectionStart, editor.selectionEnd, "end");
       if (!previewOpen) editor.focus();
       imageInput.value = "";
