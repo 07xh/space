@@ -48,7 +48,13 @@ async function checkHeroAutoplay(browser){
   assert.equal(promos.length,9,"homepage must retain the opening illustration plus all eight project posters");
   assert.equal(promos[0],"/brand/xiaohuang-live-poster.webp","the original opening illustration must be retained");
   assert(promos.slice(1).every(src=>src&&src.startsWith("/project-media/promo-")),"all eight following pictures must use project publicity posters");
-  assert.equal(await page.locator("[data-scene-video]").count(),0,"static project publicity must not retain an unrelated anime video");
+  const livePhoto=page.locator("[data-scene-video]");
+  assert.equal(await livePhoto.count(),1,"the original opening frame must contain its restored live video");
+  assert.equal(await livePhoto.getAttribute("src"),"/brand/xiaohuang-live.webm","the opening frame must reuse the original WebM asset");
+  await page.waitForFunction(()=>{const video=document.querySelector("[data-scene-video]");return video&&!video.paused&&video.currentTime>0;},null,{timeout:10000});
+  const liveTime=await livePhoto.evaluate(video=>video.currentTime);
+  await page.waitForTimeout(500);
+  assert((await livePhoto.evaluate(video=>video.currentTime))>liveTime,"the live photo must advance video frames, not remain a static poster");
   await page.waitForTimeout(1500);
   assert(await page.locator("[data-scene-card-outline]").evaluateAll(outlines=>outlines.every(outline=>Number(outline.style.getPropertyValue("--outline-left"))>0.99)),"all nine frames must finish drawing their borders");
   assert.equal(await page.locator("a[data-scene-frame][target='_blank']").count(),9,"each image must open at full size");
@@ -71,6 +77,7 @@ async function checkHeroAutoplay(browser){
   const pausedPosition=await page.evaluate(scenePosition);
   await page.waitForTimeout(1800);
   assert.equal(await page.evaluate(scenePosition),pausedPosition,"lower picture playback should pause outside the viewport");
+  assert(await livePhoto.evaluate(video=>video.paused),"the live video must pause outside the viewport");
   await page.route("**/project-media/promo-momoflow.svg",route=>route.abort());
   await page.reload({waitUntil:"domcontentloaded"});
   await page.waitForFunction(()=>document.querySelector("#home-blinds")?.dataset.homeBlindsReady==="ready",null,{timeout:20000});

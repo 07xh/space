@@ -147,9 +147,11 @@ export const homeConfig: HomeConfig = {
 				weight: 4,
 			},
 			composite: {
+				// 恢复此前已经验证过的实况 WebM，封面仍沿用 reveal.backgroundImage。
+				video: "/brand/xiaohuang-live.webm",
 				title: "筑一间小屋",
 				description: "以代码为梁、热爱为瓦，荒原上筑起一间自己的小屋。",
-				alt: "个人空间开场插画",
+				alt: "个人空间实况画面",
 				date: "2026 / 11 / 19",
 			},
 			items: [
