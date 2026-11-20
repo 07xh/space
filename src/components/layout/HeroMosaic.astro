@@ -5,14 +5,16 @@ import { createHeroTileLayout } from "@/utils/home-hero-motion";
 interface Props {
 	desktopImage: string;
 	mobileImage: string;
+	/** 拼图完成以后播放的主图实况视频。 */
+	mainVideo?: string;
 	config: HeroMosaicConfig;
 	/** 主图右上角作者标牌，空串不渲染 */
 	mainAuthor?: string;
 	/** 落位后从下方滑入、叠在照片下缘的第二张图 */
-	overlay?: { image: string; author?: string };
+	overlay?: { image: string; video?: string; author?: string };
 }
 
-const { desktopImage, mobileImage, config, mainAuthor, overlay } = Astro.props;
+const { desktopImage, mobileImage, mainVideo, config, mainAuthor, overlay } = Astro.props;
 const tiles = createHeroTileLayout(config);
 const mosaicStyle = [
 	`--home-hero-mosaic-image: url("${desktopImage}")`,
@@ -48,10 +50,24 @@ const mosaicStyle = [
 				</span>
 			))}
 		</div>
-		<picture class="home-hero__mosaic-complete" data-hero-mosaic-complete>
-			<source media="(max-width: 768px)" srcset={mobileImage} />
-			<img src={desktopImage} alt="" loading="eager" fetchpriority="high" decoding="async" />
-		</picture>
+		<div class="home-hero__mosaic-complete" data-hero-mosaic-complete>
+			<picture>
+				<source media="(max-width: 768px)" srcset={mobileImage} />
+				<img src={desktopImage} alt="" loading="eager" fetchpriority="high" decoding="async" />
+			</picture>
+			{mainVideo && (
+				<video
+					class="home-hero__live-video"
+					data-hero-live-video="main"
+					src={mainVideo}
+					muted
+					loop
+					playsinline
+					preload="none"
+					aria-hidden="true"
+				/>
+			)}
+		</div>
 		<!-- 照片描边：8 条从四角出发到边中点的笔画，d 由控制器按实测尺寸写入，
 		     减弱动效下没有 d、不渲染，边框回退为整图 box-shadow。
 		     pathLength 取 1000 而非 1：GSAP 会把 px 单位的补间值四舍五入到整数，
@@ -77,6 +93,18 @@ const mosaicStyle = [
 						loading="lazy"
 						decoding="async"
 					/>
+					{overlay.video && (
+						<video
+							class="home-hero__live-video home-hero__live-video--overlay"
+							data-hero-live-video="overlay"
+							src={overlay.video}
+							muted
+							loop
+							playsinline
+							preload="none"
+							aria-hidden="true"
+						/>
+					)}
 					{overlay.author && (
 						<span class="home-hero__photo-author">{overlay.author}</span>
 					)}
