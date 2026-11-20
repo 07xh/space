@@ -1,6 +1,7 @@
 // Minimal private publishing workspace. Reuses the old Firefly admin's light/green
 // visual direction but keeps new Space preview completely separate from that site.
 import { privateJson, requirePreviewAdmin } from "../src/lib/preview-admin-auth.js";
+import { usesGitHubLogin } from "../src/lib/github-admin-auth.js";
 
 const HTML = String.raw`<!doctype html>
 <html lang="zh-CN">
@@ -49,6 +50,7 @@ const HTML = String.raw`<!doctype html>
 <header>
   <h1>小慌 · 内容管理</h1>
   <p>独立预览站 · 只写入 07xh/space · 正式旧站与 0701000.xyz 不受影响</p>
+  <button id="logout" type="button" __LOGOUT_HIDDEN__>退出 GitHub 登录</button>
 </header>
 <main>
   <section aria-label="内容列表">
@@ -86,7 +88,7 @@ const HTML = String.raw`<!doctype html>
       <button id="unpublish" type="button" hidden>撤回公开，改为草稿</button>
       <button class="danger" id="delete" type="button">删除当前文件</button>
     </div>
-    <p id="status" role="status" aria-live="polite">已加载编辑器。后台 API 通过 Cloudflare Access 身份验证。</p>
+    <p id="status" role="status" aria-live="polite">已加载编辑器。管理员身份已验证。</p>
     <div class="toolbar">
       <button id="check-deploy" type="button">检查上次提交的部署进度</button>
       <a id="deploy-link" target="_blank" rel="noopener noreferrer" hidden>查看对应 GitHub Actions</a>
@@ -129,6 +131,14 @@ const HTML = String.raw`<!doctype html>
   function confirmDiscard() {
     return !hasUnsavedChanges() || confirm("当前内容尚未保存。确定放弃修改？");
   }
+  get("logout").addEventListener("click", async () => {
+    if (!confirmDiscard()) return;
+    try {
+      const result = await fetch("/api/auth/logout", { method: "POST", headers: { "X-Requested-With": "Space-Admin" } });
+      if (!result.ok) throw new Error("退出登录失败，请重试。");
+      location.href = "/";
+    } catch (error) { status.textContent = error.message; }
+  });
   window.addEventListener("beforeunload", (event) => {
     if (!hasUnsavedChanges()) return;
     event.preventDefault();
@@ -549,12 +559,15 @@ const HTML = String.raw`<!doctype html>
 
 export async function onRequestGet({ request, env }) {
   const denied = await requirePreviewAdmin(request, env);
+  if (denied?.status === 401 && usesGitHubLogin(env)) {
+    return new Response(null, { status: 302, headers: { location: "/api/auth/login", "cache-control": "private, no-store" } });
+  }
   if (denied) return denied;
   if (!String(env.SPACE_GITHUB_CONTENTS_TOKEN || "").trim()) {
     return privateJson({ error: "预览站后台密钥尚未配置，页面保持禁用。" }, 503);
   }
   const nonce = crypto.randomUUID().replace(/-/g, "");
-  const html = HTML.replaceAll("__NONCE__", nonce);
+  const html = HTML.replaceAll("__NONCE__", nonce).replace("__LOGOUT_HIDDEN__", usesGitHubLogin(env) ? "" : "hidden");
   return new Response(html, {
     status: 200,
     headers: {

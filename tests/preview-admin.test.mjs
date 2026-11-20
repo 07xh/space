@@ -19,6 +19,155 @@ const env = {
   SPACE_GITHUB_CONTENTS_TOKEN: "fake-test-only-token",
 };
 const bytes = new TextEncoder();
+const githubEnv = {
+  SPACE_GITHUB_CLIENT_ID: "test-client-id",
+  SPACE_GITHUB_CLIENT_SECRET: "test-client-secret",
+  SPACE_SESSION_SECRET: "test-session-secret-at-least-32-characters-long",
+  SPACE_GITHUB_CONTENTS_TOKEN: "test-repository-token",
+};
+
+test("GitHub configuration selects session authentication and never falls back to Access", async () => {
+  assert.equal((await requirePreviewAdmin(request("/api/admin/content"), githubEnv)).status, 401);
+  assert.equal((await requirePreviewAdmin(request("/admin"), { ...env, SPACE_GITHUB_CLIENT_ID: "partial" })).status, 503);
+  assert.equal((await requirePreviewAdmin(request("/admin"), { ...env, SPACE_GITHUB_CLIENT_ID: "" })).status, 503);
+});
+
+async function oauthFlow(identity = { id: 313783339, login: "07xh" }) {
+  const { onRequestGet: login } = await import("../functions/api/auth/login.js");
+  const { onRequestGet: callback } = await import("../functions/api/auth/callback.js");
+  const start = await login({ request: request("/api/auth/login"), env: githubEnv });
+  assert.equal(start.status, 302);
+  const target = new URL(start.headers.get("location"));
+  assert.equal(target.origin + target.pathname, "https://github.com/login/oauth/authorize");
+  assert.equal(target.searchParams.get("scope"), "");
+  assert.equal(target.searchParams.get("redirect_uri"), origin + "/api/auth/callback");
+  assert.equal(target.searchParams.get("code_challenge_method"), "S256");
+  const flowCookie = start.headers.get("set-cookie").split(";")[0];
+  const original = globalThis.fetch;
+  let exchanges = 0;
+  globalThis.fetch = async (url, init) => {
+    if (String(url) === "https://github.com/login/oauth/access_token") {
+      exchanges++;
+      const body = new URLSearchParams(init.body);
+      const digest = await webcrypto.subtle.digest("SHA-256", bytes.encode(body.get("code_verifier")));
+      assert.equal(b64url(digest), target.searchParams.get("code_challenge"));
+      assert.equal(body.get("redirect_uri"), origin + "/api/auth/callback");
+      return Response.json({ access_token: "oauth-token-must-stay-server-side", scope: "", token_type: "bearer" });
+    }
+    assert.equal(String(url), "https://api.github.com/user");
+    assert.equal(init.headers.Authorization, "Bearer oauth-token-must-stay-server-side");
+    return Response.json(identity);
+  };
+  try {
+    const path = "/api/auth/callback?code=valid-code&state=" + target.searchParams.get("state");
+    const context = { request: request(path, null, "GET", null, { Cookie: flowCookie }), env: githubEnv };
+    const badState = await callback({ ...context, request: request(path + "wrong", null, "GET", null, { Cookie: flowCookie }) });
+    assert.equal(badState.status, 400);
+    assert.equal(exchanges, 0);
+    const missingCookie = await callback({ ...context, request: request(path) });
+    assert.equal(missingCookie.status, 400);
+    assert.equal(exchanges, 0);
+    const result = await callback(context);
+    return { result, callback, context };
+  } finally { globalThis.fetch = original; }
+}
+
+test("GitHub OAuth binds state and PKCE then issues a protected admin session", async () => {
+  const { result } = await oauthFlow();
+  assert.equal(result.status, 302);
+  assert.equal(result.headers.get("location"), "/admin");
+  const cookies = result.headers.getSetCookie();
+  const session = cookies.find((value) => value.startsWith("__Host-space-session="));
+  assert.match(session, /Secure; HttpOnly; SameSite=Lax/);
+  assert.match(session, /Path=\//);
+  assert.doesNotMatch(session, /Domain=|oauth-token/);
+  const cookie = session.split(";")[0];
+  const authenticated = request("/admin", null, "GET", null, { Cookie: cookie });
+  assert.equal(await requirePreviewAdmin(authenticated, githubEnv), null);
+  assert.equal((await editor({ request: authenticated, env: githubEnv })).status, 200);
+  assert.equal((await requirePreviewAdmin(request("/api/admin/content", null, "GET", null, { Cookie: cookie + "tampered" }), githubEnv)).status, 401);
+  assert.equal((await requirePreviewAdmin(new Request("https://alias.pages.dev/admin", { headers: { Cookie: cookie } }), githubEnv)).status, 403);
+  const now = Date.now;
+  try {
+    Date.now = () => now() + 28801 * 1000;
+    assert.equal((await requirePreviewAdmin(authenticated, githubEnv)).status, 401);
+    Date.now = () => now() - 1000 * 60;
+    assert.equal((await requirePreviewAdmin(authenticated, githubEnv)).status, 401);
+  } finally { Date.now = now; }
+  assert.equal((await requirePreviewAdmin(request("/admin", null, "GET", null, { Cookie: cookie + "; " + cookie }), githubEnv)).status, 401);
+  assert.equal((await requirePreviewAdmin(authenticated, { ...githubEnv, SPACE_SESSION_SECRET: "different-secret-at-least-32-characters" })).status, 401);
+});
+
+test("GitHub callback fails closed without leaking upstream tokens or secrets", async () => {
+  const { onRequestGet: login } = await import("../functions/api/auth/login.js");
+  const { onRequestGet: callback } = await import("../functions/api/auth/callback.js");
+  const original = globalThis.fetch;
+  try {
+    for (const mode of ["network", "exchange-status", "malformed-token", "identity-status"]) {
+      const start = await login({ request: request("/api/auth/login"), env: githubEnv });
+      const target = new URL(start.headers.get("location"));
+      const cookie = start.headers.get("set-cookie").split(";")[0];
+      globalThis.fetch = async (url) => {
+        if (mode === "network") throw new Error("private-upstream-detail");
+        if (mode === "exchange-status") return new Response("private-upstream-detail", { status: 500 });
+        if (mode === "malformed-token") return Response.json({ error: "bad_verification_code" });
+        return String(url).endsWith("access_token")
+          ? Response.json({ access_token: "private-oauth-token", token_type: "bearer" })
+          : new Response("private-upstream-detail", { status: 401 });
+      };
+      const context = { request: request("/api/auth/callback?code=valid&state=" + target.searchParams.get("state"), null, "GET", null, { Cookie: cookie }), env: githubEnv };
+      const result = await callback(context);
+      assert.equal(result.status, 502);
+      assert.doesNotMatch(await result.text(), /private-|test-client-secret/);
+      assert.ok(result.headers.getSetCookie().every((value) => value.includes("Max-Age=0")));
+      const now = Date.now;
+      try {
+        Date.now = () => now() + 601000;
+        assert.equal((await callback(context)).status, 400);
+      } finally { Date.now = now; }
+    }
+  } finally { globalThis.fetch = original; }
+});
+
+test("GitHub session is enforced by actual private APIs before repository requests", async () => {
+  const { result } = await oauthFlow();
+  const cookie = result.headers.getSetCookie().find((value) => value.startsWith("__Host-space-session=")).split(";")[0];
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response("repository-unavailable", { status: 503 });
+  try {
+    const authenticated = request("/api/admin/content?kind=posts", null, "GET", null, { Cookie: cookie });
+    assert.equal((await api({ request: authenticated, env: githubEnv })).status, 502);
+    assert.equal((await api({ request: request("/api/admin/content?kind=posts"), env: githubEnv })).status, 401);
+    assert.equal((await upload({ request: request("/api/admin/upload", null, "POST"), env: githubEnv })).status, 401);
+    assert.equal((await deployment({ request: request("/api/admin/deployment?commit=" + "d".repeat(40)), env: githubEnv })).status, 401);
+  } finally { globalThis.fetch = original; }
+});
+
+test("GitHub callback rejects a renamed account or an account reusing the admin name", async () => {
+  for (const identity of [{ id: 313783339, login: "other" }, { id: 1, login: "07xh" }]) {
+    const { result } = await oauthFlow(identity);
+    assert.equal(result.status, 403);
+    assert.ok(!result.headers.getSetCookie().some((cookie) => cookie.startsWith("__Host-space-session=") && !cookie.includes("Max-Age=0")));
+  }
+});
+
+test("GitHub login is fail closed on missing secrets or unexpected hosts; admin redirects anonymous users", async () => {
+  const { onRequestGet: login } = await import("../functions/api/auth/login.js");
+  assert.equal((await login({ request: request("/api/auth/login"), env: {} })).status, 503);
+  assert.equal((await login({ request: new Request("https://alias.pages.dev/api/auth/login"), env: githubEnv })).status, 403);
+  const result = await editor({ request: request("/admin"), env: githubEnv });
+  assert.equal(result.status, 302);
+  assert.equal(result.headers.get("location"), "/api/auth/login");
+});
+
+test("GitHub logout requires a same-origin POST and clears the host session", async () => {
+  const { onRequest: logout } = await import("../functions/api/auth/logout.js");
+  assert.equal((await logout({ request: request("/api/auth/logout"), env: githubEnv })).status, 405);
+  assert.equal((await logout({ request: request("/api/auth/logout", null, "POST", null, { Origin: "https://evil.example", "X-Requested-With": "Space-Admin" }), env: githubEnv })).status, 403);
+  const result = await logout({ request: request("/api/auth/logout", null, "POST", {}), env: githubEnv });
+  assert.equal(result.status, 200);
+  assert.match(result.headers.get("set-cookie"), /__Host-space-session=;.*Max-Age=0/);
+});
 function b64url(data) {
   return Buffer.from(data).toString("base64url");
 }

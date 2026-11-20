@@ -1,5 +1,20 @@
 # 小慌博客：独立预览站发布后台验收
 
+## GitHub 登录（免 Zero Trust 方案）
+
+登录入口仍为 `https://07xh-space-preview.pages.dev/admin`。配置 GitHub OAuth 后，未登录访问会跳转 GitHub；管理 API 保持 HTTP 401。只允许 GitHub 用户 ID `313783339` 且用户名为 `07xh` 的账号。
+
+- 注册专用 OAuth App，Homepage URL 为 `https://07xh-space-preview.pages.dev`，唯一回调为 `https://07xh-space-preview.pages.dev/api/auth/callback`；不启用通配符或 Device Flow。
+- 登录不申请额外 OAuth scope，只读取公开身份，不使用 OAuth Token 写仓库。
+- Pages Production 配置 `SPACE_GITHUB_CLIENT_ID`；将 `SPACE_GITHUB_CLIENT_SECRET` 和至少 32 字节随机值 `SPACE_SESSION_SECRET` 保存为加密 Secret。
+- 写入仍使用独立加密 Secret `SPACE_GITHUB_CONTENTS_TOKEN`，仅授权 `07xh/space`、Contents: Read and write。
+- 此方案无需填写下述三个 Access 身份变量。只要出现任意 OAuth 配置项，就仅使用 GitHub 会话；配置为空或不完整返回 503，不能回退到 Access。
+- OAuth 回调校验 state、S256 PKCE 和 GitHub 实时身份，随后丢弃 OAuth Token。会话使用签名、Secure、HttpOnly、SameSite=Lax、无 Domain 的 Cookie，有效期 8 小时。退出会清除当前浏览器 Cookie；轮换会话 Secret 可立即使所有会话失效。GitHub 侧撤销 OAuth 授权不会立即使已签发的 8 小时会话失效。
+- 正式域名之外的部署别名禁止使用该登录会话。原有 Access 实现仅供未配置任何 OAuth 项的部署使用；两种认证不会同时放行。
+- 修改配置后仍通过现有 GitHub Actions → Wrangler 上传。本文后续 Access 验收说明仅适用于 Access 模式。GitHub 模式还需验收本人登录、其他账号拒绝、退出及真实草稿写入与删除。
+
+本段说明实现与配置要求，不代表线上 Secret、登录和真实发布验收已经完成。
+
 > 状态：后台代码仍位于草稿 PR，**未合并到 main**。独立 `admin-acceptance` 预览分支已通过云端 Functions 匿名拒绝访问测试（未配置管理员身份时返回 HTTP 503）；**真实登录、文件写入及发布回读尚未验收**。
 
 ## 隔离边界
