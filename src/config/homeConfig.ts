@@ -91,7 +91,7 @@ export const homeConfig: HomeConfig = {
 	homeBlinds: {
 		enabled: true,
 		reveal: {
-			backgroundImage: "/project-media/promo-xiaoxu.svg",
+			backgroundImage: "/brand/xiaohuang-live-poster.webp",
 			// 长条横移揭示的入场标题：标题单行显示（版式按 4 字排），
 			// 祝福语单行显示（版式按 5 字排），可自由增减条数
 			headline: {
@@ -147,12 +147,19 @@ export const homeConfig: HomeConfig = {
 				weight: 4,
 			},
 			composite: {
-				title: "校序",
-				description: "课表、任务、消息、教务与第二课堂，集中整理校园日常。",
-				alt: "校序功能全景宣传图",
-				date: "2026 / 11 / 09",
+				title: "筑一间小屋",
+				description: "以代码为梁、热爱为瓦，荒原上筑起一间自己的小屋。",
+				alt: "个人空间开场插画",
+				date: "2026 / 11 / 19",
 			},
 			items: [
+				{
+					title: "校序",
+					description: "课表、任务、消息、教务与第二课堂，集中整理校园日常。",
+					image: "/project-media/promo-xiaoxu.svg",
+					alt: "校序功能全景宣传图",
+					date: "2026 / 11 / 09",
+				},
 				{
 					title: "绘序",
 					description:
