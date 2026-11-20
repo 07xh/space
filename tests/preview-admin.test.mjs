@@ -255,7 +255,7 @@ test("private editor includes explicit draft/publish controls and compilable UI 
     assert.match(html, /GitHub 已确认删除/);
     assert.match(html, /删除请求未确认成功/);
     assert.match(html, /但文件列表刷新失败/);
-    assert.equal(html.includes("    await refresh();\\n  }\\n  editor.addEventListener"), false,
+    assert.doesNotMatch(html, /finally \{ busy\(false\); \}\s*await refresh\(\)/,
       "Deletion must not unconditionally refresh and erase failed-delete errors");
     assert.match(html, /"check-deploy","editor"/, "Editor must be disabled while saving");
     assert.match(html, /now\.getFullYear\(\)/, "Draft date must use browser-local calendar");
