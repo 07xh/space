@@ -29,6 +29,15 @@
 - 再次执行新预览站的真实浏览器验收（文章、项目、图片、移动端），确认新增 Functions 不影响公共静态页面。
 - 核验是否生成了独立部署日志；不要把 `GitHub PUT 201` 误称为已经部署完成。
 
+## 图片上传（待线上验收）
+
+- 后台编辑器复用旧 Firefly 的图片类型和魔数检查：仅 PNG、JPEG、WebP、GIF；单文件不超过 4 MiB。
+- 页面通过同源 `/api/admin/upload` 上传；后台验证相同的 Cloudflare Access JWT，拒绝来自其他来源的提交。
+- 图片只创建于新仓库 `07xh/space` 的 `public/uploads/YYYYMMDD-随机名.扩展名`，不访问旧仓库或旧媒体库。
+- 新后台在当前光标位置插入 `![图片](/uploads/文件名)`；GitHub 提交后需要等待**新预览站部署成功**才可以打开对应图片。
+- 应验证：正常图片上传、伪造类型被拒、重复文件名不会覆盖、构建成功、文章图片在线解码、发布回滚。
+- 目前仅完成模拟测试与编译检查，**尚未使用线上真实管理员账号完成上传**。
+
 ## 当前已实现的门禁
 
 后台的写入逻辑是独立于旧 Worker 的 Cloudflare Pages Functions，校验 Cloudflare Access JWT 的 RSA 签名、Issuer、Audience、管理员邮箱和有效期。写入时还有同源 Origin、专用 Header、JSON、大小上限、固定仓库路径与 GitHub SHA 冲突检查。未填写配置时采取 fail-closed。
