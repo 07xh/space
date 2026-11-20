@@ -62,8 +62,7 @@ const TITLE_EXIT_TIME = 0.72;
 /** 标题淡出时向上抬的距离（px），与整图离场同向 */
 const TITLE_EXIT_LIFT = 46;
 /** 复用原拼合编排，按时间自动播放；入场标题有短暂驻留后开始。 */
-const HERO_AUTOPLAY_DURATION = 4;
-const HERO_AUTOPLAY_DELAY = 1.3;
+const HERO_AUTOPLAY_DELAY = 1.6;
 let initialReloadHandled = false;
 
 /**
@@ -357,7 +356,17 @@ export function mountHomeHero(): () => void {
 		gsap.delayedCall(HERO_AUTOPLAY_DELAY, () => {
 			if (disposed || !timeline) return;
 			completePendingIntros();
-			timeline.timeScale(timeline.duration() / HERO_AUTOPLAY_DURATION).play(0);
+			const scene = timeline;
+			// 分段留白：先看清拼合，再看整图，最后让照片与介绍从容落位。
+			animationContext.add(() => {
+				scene.pause(0);
+				gsap
+					.timeline({ defaults: { ease: "none" } })
+					.to(scene, { time: GUIDE_REVEAL_TIME, duration: 3.4 })
+					.to({}, { duration: 0.9 })
+					.to(scene, { time: INTRO_REVEAL_TIME, duration: 1.8 })
+					.to(scene, { time: scene.duration(), duration: 2.4 });
+			});
 		});
 	};
 

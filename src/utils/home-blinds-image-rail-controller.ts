@@ -1,6 +1,6 @@
-/** 巡航约每秒 56px；触边后短暂提速，再以 0.85s 时间常数衰减回巡航。 */
-const CRUISE_SPEED = 56;
-const EDGE_SPEED = 220;
+/** 巡航约每秒 32px；触边后短暂提速，再以 0.85s 时间常数衰减回巡航。 */
+const CRUISE_SPEED = 32;
+const EDGE_SPEED = 110;
 const MAX_RELEASE_SPEED = 720;
 const MAX_EDGE_SPEED = 960;
 const DECAY_RATE = 1 / 0.85;

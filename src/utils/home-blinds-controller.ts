@@ -71,13 +71,13 @@ const BACKGROUND_ENTER_SCALE = 1.18;
 /** 视差起始纵向位移（占背景盒高度百分比），必须小于起始缩放留出的余量 */
 const BACKGROUND_ENTER_TRAVEL_PERCENT = 7.5;
 /** 视差入场补间时长（秒） */
-const BACKGROUND_ENTER_DURATION = 1.15;
+const BACKGROUND_ENTER_DURATION = 1.8;
 /**
  * 留言墙入场的「Q弹」：卡面从这么小弹到原位，elastic 的过冲负责那一下回弹。
  * 错峰用随机起点，免得 12 颗气泡齐步走。
  */
 const BUBBLE_POP_FROM_SCALE = 0.24;
-const BUBBLE_POP_DURATION = 0.78;
+const BUBBLE_POP_DURATION = 1.05;
 const BUBBLE_POP_STAGGER = 0.055;
 const BUBBLE_POP_EASE = "elastic.out(1, 0.42)";
 /**
@@ -85,11 +85,10 @@ const BUBBLE_POP_EASE = "elastic.out(1, 0.42)";
  * 每幕只播一次，播完不再复位，来回滚动也不会重播或隐藏。
  */
 const SCENE_ENTER_DISTANCE = 0.42;
-/**
- * pin 前这么一段滚动量专门播明信片墙的入场（跑马灯描线 + 明信片滑入描边），
- * 走完才开始横向移动；入场与横移都按滚动进度推进，反向滚动原路退回。
- */
-const SCENES_INTRO_SHARE = 0.16;
+/** 自动影像的入场、阅读停留与切换分别计时，不再由滚轮速度决定。 */
+const SCENES_ENTER_DURATION = 2.2;
+const SCENE_HOLD_DURATION = 4.5;
+const SCENE_TRANSITION_DURATION = 1.8;
 
 let activeRoot: HTMLElement | null = null;
 let activeCleanup: (() => void) | null = null;
@@ -197,7 +196,7 @@ function playSceneIntro(gsap: Gsap, scene: SceneRefs) {
 		{
 			autoAlpha: 1,
 			y: 0,
-			duration: 0.66,
+			duration: 0.95,
 			ease: "power3.out",
 		},
 		0.2,
@@ -206,19 +205,19 @@ function playSceneIntro(gsap: Gsap, scene: SceneRefs) {
 	if (scene.bandDate) {
 		timeline.to(
 			scene.bandDate,
-			{ autoAlpha: 1, y: 0, duration: 0.46, ease: "power2.out" },
+			{ autoAlpha: 1, y: 0, duration: 0.65, ease: "power2.out" },
 			0.55,
 		);
 	}
 	timeline
 		.to(
 			scene.bandDivider,
-			{ autoAlpha: 1, scaleY: 1, duration: 0.34, ease: "power2.inOut" },
+			{ autoAlpha: 1, scaleY: 1, duration: 0.5, ease: "power2.inOut" },
 			0.62,
 		)
 		.to(
 			scene.bandNote,
-			{ autoAlpha: 1, y: 0, duration: 0.5, ease: "power2.out" },
+			{ autoAlpha: 1, y: 0, duration: 0.75, ease: "power2.out" },
 			0.66,
 		);
 
@@ -235,10 +234,6 @@ function setupScenes(context: SetupContext) {
 	const section = selectRequired<HTMLElement>(
 		root,
 		"[data-home-blinds-scenes]",
-	);
-	const viewport = selectRequired<HTMLElement>(
-		section,
-		"[data-scenes-viewport]",
 	);
 	const portal = selectRequired<HTMLElement>(root, "[data-scenes-portal]");
 	const portalImage = selectRequired<HTMLImageElement>(
@@ -334,17 +329,23 @@ function setupScenes(context: SetupContext) {
 	);
 	let resetWindTimer: number | undefined;
 	let resizeTimer: number | undefined;
-	let horizontalEnabled = false;
 	let phase: StagePhase = "reveal";
 	let rootInView = false;
 	let shrinkTrigger: ScrollTriggerInstance | null = null;
-	let pinTrigger: ScrollTriggerInstance | null = null;
+	let scenesTrigger: ScrollTriggerInstance | null = null;
+	let scenePlayback: GsapTimeline | null = null;
+	const playbackState = { intro: 0, scene: 0 };
+	const sceneImages = cards.flatMap((card) =>
+		Array.from(
+			card.querySelectorAll<HTMLImageElement>(".home-blinds-scene__image"),
+		),
+	);
+	let requestedSceneImages = false;
+	const failedSceneImages = new WeakSet<HTMLImageElement>();
 	let actVisible = false;
 	let bubbleTransition: GsapTween | null = null;
 	let bubblePop: GsapTween | null = null;
 	let standTransition: GsapTween | null = null;
-	/** 上一次 pin 进度，用来把相邻两次 onUpdate 的差值换算成横滑像素速度 */
-	let lastPinProgress = 0;
 	/**
 	 * 三组判据各管各的，混用会做出「退场段动画被掐掉」这类怪事：
 	 * - `isStageInView`：固定舞台（全屏背景与收缩门）该不该露出，滚过影像层就隐藏。
@@ -356,8 +357,6 @@ function setupScenes(context: SetupContext) {
 	const isStageInView = () => !signal.aborted && rootInView && phase !== "done";
 	const isLayerLive = () =>
 		!signal.aborted && rootInView && (phase === "scenes" || phase === "done");
-	const isScrubActive = () =>
-		!signal.aborted && rootInView && phase === "scenes";
 	const loopsShouldRun = () =>
 		isLayerLive() && document.visibilityState === "visible";
 
@@ -579,8 +578,13 @@ function setupScenes(context: SetupContext) {
 
 	// 循环暂停时保留当前帧，回到前台或滚回本层后继续。
 	const syncAnimationPlayback = () => {
-		const layerLive = isLayerLive();
 		const loopsRun = loopsShouldRun();
+		const imagesReady = sceneImages.every(
+			(image) =>
+				image.complete &&
+				(image.naturalWidth > 0 || failedSceneImages.has(image)),
+		);
+		scenePlayback?.paused(!loopsRun || !imagesReady);
 		// 跑马灯的入退场由滚动进度/收线时间线自己推进，这里只停它的无限循环。
 		// 跑马灯循环、留言墙和图片轨道额外让开后台标签页；退场段仍随 section 离场。
 		marquee.setPaused(!loopsRun);
@@ -588,12 +592,12 @@ function setupScenes(context: SetupContext) {
 		setImageRailPaused(!loopsRun || !actVisible);
 		for (const scene of scenes) {
 			if (scene.intro && scene.intro.progress() < 1) {
-				scene.intro.paused(!layerLive);
+				scene.intro.paused(!loopsRun);
 			}
 		}
 		for (const setRotation of rotationSetters) {
 			if (setRotation.tween.progress() < 1) {
-				setRotation.tween.paused(!layerLive);
+				setRotation.tween.paused(!loopsRun);
 			}
 		}
 	};
@@ -686,40 +690,30 @@ function setupScenes(context: SetupContext) {
 
 	/** 只依赖滚动位置，因此 refresh 之后也能得到正确阶段 */
 	function resolvePhase(): StagePhase {
-		if (!pinTrigger || !shrinkTrigger) return "reveal";
+		if (!scenesTrigger || !shrinkTrigger) return "reveal";
 		const scroll = window.scrollY;
-		if (scroll >= pinTrigger.end) return "done";
-		if (scroll >= pinTrigger.start) return "scenes";
+		if (scroll >= scenesTrigger.end) return "done";
+		if (scroll >= scenesTrigger.start) return "scenes";
 		if (scroll >= shrinkTrigger.start) return "shrink";
 		return "reveal";
 	}
 
-	/** 舞台显隐与各幕位置的唯一入口 */
+	/** 舞台显隐与各幕位置的唯一入口；滚动只决定可见性，播放进度独立计时 */
 	function syncStage() {
 		if (signal.aborted) return;
 		phase = resolvePhase();
 		applyPhase();
 
-		const progress = pinTrigger?.progress ?? 0;
-		horizontalEnabled = isScrubActive() && progress < 0.999;
-		viewport.classList.toggle("is-horizontal", horizontalEnabled);
-		// pin 的前一小段专用于入场（跑马灯描线 + 明信片滑入描边），之后才开始横移；
-		// 两段都按滚动距离推进，反向滚动原路退回。
-		// done 保留最后一幕随 section 离场，但不再启动或继续任何循环。
-		const rawProgress =
-			phase === "scenes" ? progress : phase === "done" ? 1 : 0;
-		const intro = clamp(rawProgress / SCENES_INTRO_SHARE, 0, 1);
-		const sceneProgress =
-			phase === "scenes"
-				? clamp(
-						(rawProgress - SCENES_INTRO_SHARE) / (1 - SCENES_INTRO_SHARE),
-						0,
-						1,
-					) * lastSceneIndex
-				: phase === "done"
-					? lastSceneIndex
-					: 0;
-		renderScenes(sceneProgress, phase === "scenes" || phase === "done", intro);
+		if (rootInView && !requestedSceneImages) {
+			requestedSceneImages = true;
+			// 横向隐藏的下一幕不能依赖原生 lazy 的几何判断。
+			for (const image of sceneImages) image.loading = "eager";
+		}
+		renderScenes(
+			playbackState.scene,
+			phase === "scenes" || phase === "done",
+			playbackState.intro,
+		);
 		syncAnimationPlayback();
 	}
 
@@ -804,33 +798,52 @@ function setupScenes(context: SetupContext) {
 			0,
 		);
 
-	pinTrigger = ScrollTrigger.create({
-		id: "home-blinds-scenes-pin",
+	scenePlayback = gsap.timeline({ paused: true, onUpdate: syncStage });
+	scenePlayback
+		.to(playbackState, {
+			intro: 1,
+			duration: SCENES_ENTER_DURATION,
+			ease: "power2.inOut",
+		})
+		.to({}, { duration: SCENE_HOLD_DURATION });
+	for (let index = 1; index <= lastSceneIndex; index += 1) {
+		scenePlayback
+			.to(playbackState, {
+				scene: index,
+				duration: SCENE_TRANSITION_DURATION,
+				ease: "power2.inOut",
+			})
+			.to({}, { duration: SCENE_HOLD_DURATION });
+	}
+	// 只观察区域进出；不锁住页面，也不把滚动位置写入画面进度。
+	scenesTrigger = ScrollTrigger.create({
+		id: "home-blinds-scenes-playback",
 		trigger: section,
-		// 相比原来的 5.5 屏缩短到 3.4 屏：同样的滚动量能推进更长的横向距离
 		start: "top top",
-		end: () =>
-			`+=${Math.max(config.scenes.scrollDistance, window.innerHeight * 3.4)}`,
-		pin: true,
-		pinSpacing: true,
-		anticipatePin: 1,
+		end: "bottom top",
 		invalidateOnRefresh: true,
-		onToggle: (self) => {
-			// 触发器换挡时重置进度基准，避免拿跨档差值当横滑速度甩出去
-			lastPinProgress = self.progress;
-			syncStage();
-		},
-		onUpdate: (self) => {
-			if (!self.isActive) return;
-			syncStage();
-			// 相邻两次 onUpdate 的进度差 × 触发区间长度 = 本次滚动跨过的像素量；
-			// 传给跑马灯叠加加速，反向滚动时它会直接掉头跑
-			const deltaPx =
-				(self.progress - lastPinProgress) * (self.end - self.start);
-			lastPinProgress = self.progress;
-			marquee.nudge(deltaPx);
-		},
+		onToggle: syncStage,
+		onUpdate: syncStage,
 	});
+	for (const image of sceneImages) {
+		// 后续某张图失败也不能冻结已经可用的全部卡片；保留原生 alt 提示。
+		if (
+			image.getAttribute("src") &&
+			image.complete &&
+			image.naturalWidth === 0
+		) {
+			failedSceneImages.add(image);
+		}
+		image.addEventListener("load", syncStage, { once: true, signal });
+		image.addEventListener(
+			"error",
+			() => {
+				failedSceneImages.add(image);
+				syncStage();
+			},
+			{ once: true, signal },
+		);
+	}
 
 	const rootTrigger = ScrollTrigger.create({
 		id: "home-blinds-fixed-stage",
@@ -851,36 +864,11 @@ function setupScenes(context: SetupContext) {
 		rootInView = rootTrigger.isActive;
 		measureScene();
 		marquee.refresh();
-		lastPinProgress = pinTrigger?.progress ?? 0;
 		syncStage();
 	};
 	ScrollTrigger.addEventListener("refresh", handleRefresh);
 	document.addEventListener("visibilitychange", syncStage, { signal });
 
-	// 明信片仍由滚轮/触控板推进；底部图片轨道的拖拽不换算成页面滚动。
-	viewport.addEventListener(
-		"wheel",
-		(event) => {
-			if (
-				(event.target instanceof Node && stands.contains(event.target)) ||
-				!horizontalEnabled ||
-				!pinTrigger ||
-				Math.abs(event.deltaX) <= Math.abs(event.deltaY)
-			)
-				return;
-			event.preventDefault();
-			window.scrollTo({
-				top: clamp(
-					// 触控板横滑按 1.8 倍换算成滚动量，横移更快
-					window.scrollY + event.deltaX * 1.8,
-					pinTrigger.start,
-					pinTrigger.end,
-				),
-				behavior: "auto",
-			});
-		},
-		{ passive: false, signal },
-	);
 	window.addEventListener(
 		"resize",
 		() => {
@@ -916,7 +904,7 @@ function setupScenes(context: SetupContext) {
 				{ clearProps: "willChange" },
 			);
 		}
-		viewport.classList.remove("is-horizontal");
+		scenePlayback?.kill();
 		gsap.killTweensOf([
 			...cards,
 			...cardOutlines,
@@ -933,7 +921,7 @@ function setupScenes(context: SetupContext) {
 			stageHeadlineWindow,
 		]);
 		rootTrigger.kill();
-		pinTrigger?.kill();
+		scenesTrigger?.kill();
 		shrinkTrigger?.kill();
 		shrinkTimeline.kill();
 		gsap.set(stage, { autoAlpha: 0 });

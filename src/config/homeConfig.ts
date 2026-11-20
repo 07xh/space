@@ -97,9 +97,9 @@ export const homeConfig: HomeConfig = {
 			headline: {
 				title: "欢迎来到",
 				messages: ["夜路有星光", "岁岁皆欢愉", "所念皆星河", "版本无回滚"],
-				enterDuration: 0.6,
-				messageHold: 2.6,
-				messageFlipDuration: 0.75,
+				enterDuration: 1.1,
+				messageHold: 4.2,
+				messageFlipDuration: 1.1,
 			},
 		},
 		scenes: {
@@ -118,7 +118,7 @@ export const homeConfig: HomeConfig = {
 						top: 50,
 						centerX: 37.5,
 						thickness: 92,
-						speed: 120,
+						speed: 60,
 					},
 					{
 						text: "雾景澄秋，一晚风吹尽朝来雨。夕阳烟树，万里山光暮",
@@ -126,7 +126,7 @@ export const homeConfig: HomeConfig = {
 						top: 50,
 						centerX: 62.5,
 						thickness: 74,
-						speed: 88,
+						speed: 44,
 					},
 					{
 						text: "年年岁岁花相似，岁岁年年人不同",
@@ -134,7 +134,7 @@ export const homeConfig: HomeConfig = {
 						top: 87.5,
 						centerX: 50,
 						thickness: 88,
-						speed: 104,
+						speed: 52,
 					},
 				],
 			},
