@@ -167,7 +167,7 @@ export const homeConfig: HomeConfig = {
 				weight: 4,
 			},
 			composite: {
-				video: "/brand/xiaohuang-live.mp4",
+				video: "/brand/xiaohuang-live.webm",
 				title: "筑一间小屋",
 				description: "以代码为梁、热爱为瓦，荒原上筑起一间自己的小屋。",
 				alt: "实况画面",

@@ -43,7 +43,12 @@ async function checkHeroAutoplay(browser){
   await page.waitForFunction(()=>[...document.querySelectorAll("img.home-blinds-scene__image")].every(image=>image.complete),null,{timeout:20000});
   await page.waitForFunction(()=>getComputedStyle(document.querySelector("[data-headline-window]")).visibility==="hidden"&&getComputedStyle(document.querySelector("[data-home-blinds-scene]")).visibility==="visible",null,{timeout:12000});
   const livePhoto=page.locator("[data-scene-video]");
-  await page.waitForFunction(()=>{const v=document.querySelector("[data-scene-video]");return v&&!v.paused&&v.currentTime>0;},null,{timeout:10000});
+  try{
+   await page.waitForFunction(()=>{const v=document.querySelector("[data-scene-video]");return v&&!v.paused&&v.currentTime>0;},null,{timeout:10000});
+  }catch(error){
+   const media=await livePhoto.evaluate(video=>({src:video.currentSrc,paused:video.paused,hidden:video.hidden,readyState:video.readyState,networkState:video.networkState,error:video.error?.message,muted:video.muted}));
+   throw new Error("Live photo failed to play: "+JSON.stringify(media),{cause:error});
+  }
   const liveTime=await livePhoto.evaluate(video=>video.currentTime);
   await page.waitForTimeout(600);
   assert.notEqual(await livePhoto.evaluate(video=>video.currentTime),liveTime,"live photo must play real video frames");
