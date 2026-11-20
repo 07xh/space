@@ -31,3 +31,37 @@ jobs:
         run: node --test tests/preview-admin.test.mjs
       - name: Bundle Cloudflare Pages Functions without deploying
         run: npx --yes wrangler@4 pages functions build functions --outdir /tmp/space-preview-pages-functions --compatibility-date 2026-11-20
+      - name: Live local Pages runtime must fail closed without secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/space-preview-static
+          printf '<!doctype html><title>Private Pages runtime smoke</title>' > /tmp/space-preview-static/index.html
+          npx --yes wrangler@4 pages dev /tmp/space-preview-static --port 8788 --compatibility-date=2026-11-20 > /tmp/space-pages-runtime.log 2>&1 &
+          worker_pid=$!
+          trap 'kill "$worker_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in $(seq 1 50); do
+            code="$(curl -s --max-time 2 -o /tmp/space-public.html -w '%{http_code}' http://127.0.0.1:8788/ || true)"
+            if [ "$code" = 200 ]; then ready=1; break; fi
+            if ! kill -0 "$worker_pid" 2>/dev/null; then
+              cat /tmp/space-pages-runtime.log
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then
+            echo "Cloudflare Pages local runtime never started"
+            cat /tmp/space-pages-runtime.log
+            exit 1
+          fi
+          for route in /admin '/api/admin/content?kind=posts' /api/admin/upload; do
+            code="$(curl -s --max-time 10 -o /tmp/space-locked.json -w '%{http_code}' "http://127.0.0.1:8788$route")"
+            if [ "$code" != 503 ]; then
+              echo "Fail-closed guard broken for $route: HTTP $code"
+              cat /tmp/space-pages-runtime.log
+              exit 1
+            fi
+            node -e 'const fs=require("node:fs"); const data=JSON.parse(fs.readFileSync("/tmp/space-locked.json","utf8")); if (!String(data.error || "").includes("未配置")) process.exit(1)'
+            echo "PASS: $route denies unconfigured admin access with HTTP 503"
+          done
