@@ -1,12 +1,12 @@
 # 小慌博客：独立预览站发布后台验收
 
-> 状态：代码在独立草稿 PR 中，**尚未部署启用**。不得把通过模拟测试称为真实在线发布成功。
+> 状态：后台代码仍位于草稿 PR，**未合并到 main**。独立 `admin-acceptance` 预览分支已通过云端 Functions 匿名拒绝访问测试（未配置管理员身份时返回 HTTP 503）；**真实登录、文件写入及发布回读尚未验收**。
 
 ## 隔离边界
 
 - **新站**：`https://07xh-space-preview.pages.dev`
 - **新后台入口**：`/admin`（Cloudflare Pages Function）
-- **管理 API**：`/api/admin/content?kind=posts|dynamic`
+- **管理 API**：`/api/admin/content?kind=posts|dynamic`、`/api/admin/deployment?commit=完整40位SHA`（只读 GitHub Actions 状态）、`/api/admin/upload`
 - **唯一写入仓库**：`07xh/space` 的 `main`，只允许 `src/content/posts/` 或 `src/content/dynamic/` 下受控的 Markdown 文件。
 - **禁止触碰**：旧 `07xh/Firefly`、旧站的管理员账号/密钥/会话 KV、`0701000.xyz` 及其 DNS/部署绑定。
 
@@ -44,6 +44,18 @@ Cloudflare Pages 的 Wrangler 直接上传支持仓库**根目录**下的 `funct
 - 删除测试草稿，确认 GitHub 和新预览站均已更新；不删除已有文章和项目。
 - 再次执行新预览站的真实浏览器验收（文章、项目、图片、移动端），确认新增 Functions 不影响公共静态页面。
 - 核验是否生成了独立部署日志；不要把 `GitHub PUT 201` 误称为已经部署完成。
+
+## 发布完成后的可核验状态（新增）
+
+编辑器在新建、修改、删除内容和上传图片得到 GitHub commit SHA 后，提供 **“检查上次提交的部署进度”** 按钮（按需查询，不自动高频轮询）。状态查询经过同一 Cloudflare Access JWT 验证，不能匿名读取。
+
+查询范围固定为新仓库 `07xh/space` 的 `main` 分支，使用 GitHub **公开 Actions 运行元数据**，不让专用于 Contents 的写入密钥再获得 Actions 权限，也不额外创建 Cloudflare 凭证。
+
+- **尚未发现 / 排队 / 正在部署**：只代表 GitHub 已返回或尚未返回相应运行记录，不等于网站已更新。
+- **部署完成**：精确匹配提交 SHA 的 `Deploy Cloudflare Pages preview` workflow 已显示成功，表示 Actions 的 Wrangler 上传步骤通过。
+- **页面验证中 / 验证失败 / 页面验证通过**：同一提交 SHA 的 `Verify deployed preview article and project pages` 浏览器检查状态；只有成功时才提示“部署后的页面回归测试通过”。
+- 查询失败（GitHub 请求失败、限流、旧提交超出最近 100 条运行记录）会明确展示“无法确认”，不得伪装成功；界面提供匹配的 GitHub Actions 运行链接。
+- 这些结果是 **GitHub Actions 执行证据**，不是检查某位读者浏览器中的缓存，也不能替代 Cloudflare Access 本人登录、真实文件保存和图片上传的最终验收。
 
 ## 图片上传（待线上验收）
 
