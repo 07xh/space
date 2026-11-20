@@ -60,6 +60,39 @@ function validateMarkdown(kind, text) {
     const pinned = [...front.matchAll(/^pinned:\s*(.*?)\s*$/gm)];
     if (pinned.length > 1 || (pinned.length && !/^(true|false)$/.test(pinned[0][1]))) return false;
   }
+
+  // Validate common typed fields against the actual Astro content collections.
+  // The earlier required-field check alone could allow YAML that always fails
+  // the next build (for example tags: "text" or comment: maybe).
+  const fields = new Map();
+  for (const match of front.matchAll(/^([A-Za-z][A-Za-z0-9_-]*):[ \t]*(.*)$/gm)) {
+    const key = match[1];
+    if (fields.has(key)) return false; // duplicate top-level YAML keys
+    fields.set(key, match[2].trim());
+  }
+  const booleanFields = kind === "posts"
+    ? ["pinned", "comment", "wikiExclude"] : ["pinned"];
+  for (const key of booleanFields) {
+    if (fields.has(key) && !/^(true|false)$/.test(fields.get(key))) return false;
+  }
+  if (kind === "posts") {
+    if (fields.has("updated")) {
+      const stamp = fields.get("updated").replace(/^["']|["']$/g, "");
+      const match = stamp.match(/^(\d{4}-\d{2}-\d{2})(?:[ T]([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?)?$/);
+      if (!match || !validCalendarDate(match[1])) return false;
+    }
+    if (fields.has("tags")) {
+      const value = fields.get("tags");
+      if (value && (!value.startsWith("[") || !value.endsWith("]"))) return false;
+    }
+  }
+  for (const key of (kind === "posts"
+    ? ["description", "image", "category", "lang", "author", "sourceLink", "licenseName", "licenseUrl", "password", "passwordHint"]
+    : ["location"])) {
+    if (!fields.has(key)) continue;
+    const value = fields.get(key);
+    if (/^[\[{]/.test(value) || (value === "null" && key !== "category")) return false;
+  }
   return true;
 }
 
@@ -143,7 +176,12 @@ async function writeFile(token, input, path, method) {
     return privateJson({ error: "缺少文件版本 SHA，请刷新后再修改。" }, 409);
   }
   if (!isDelete && !validateMarkdown(input.kind, input.content)) {
-    return privateJson({ error: "正文或 frontmatter 不完整，无法保存。" }, 400);
+    return privateJson({ error: "正文或 frontmatter 格式不符合站点规范，无法保存。" }, 400);
+  }
+  // A newly created document must have an explicit draft flag: omitting it
+  // silently defaults to public in Astro, even when the editor says "Save".
+  if (method === "POST" && !/^draft:\s*(?:true|false)\s*$/m.test(input.content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] || "")) {
+    return privateJson({ error: "新内容必须明确指定 draft: true 或 draft: false，防止意外公开。" }, 400);
   }
   const payload = isDelete ? {
     message: "Delete " + path,
