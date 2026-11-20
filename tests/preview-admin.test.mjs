@@ -252,6 +252,17 @@ test("private editor includes explicit draft/publish controls and compilable UI 
     const html = await response.text();
     assert.match(html, /id="publish"/);
     assert.match(html, /id="check-deploy"/);
+    assert.match(html, /id="toggle-preview"/);
+    assert.match(html, /id="preview-pane"/);
+    assert.match(html, /data-format="bold"/);
+    assert.match(html, /data-format="heading"/);
+    assert.match(html, /data-format="list"/);
+    assert.match(html, /data-format="link"/);
+    assert.match(html, /function renderPreview\(\)/);
+    assert.match(html, /function populateFiles\(items, selectedPath = ""\)/);
+    assert.doesNotMatch(html, /previewPane\.innerHTML\s*=/,
+      "Preview must not inject untrusted Markdown as HTML");
+
     assert.match(html, /GitHub 已确认删除/);
     assert.match(html, /删除请求未确认成功/);
     assert.match(html, /但文件列表刷新失败/);
