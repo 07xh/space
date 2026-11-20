@@ -252,6 +252,14 @@ test("private editor includes explicit draft/publish controls and compilable UI 
     const html = await response.text();
     assert.match(html, /id="publish"/);
     assert.match(html, /id="check-deploy"/);
+    assert.match(html, /id="unpublish"/);
+    assert.match(html, /save\("unpublish"\)/);
+    assert.match(html, /确认撤回公开内容/);
+    assert.match(html, /id="file-search"/);
+    assert.match(html, /fileSearch\.addEventListener\("input"/);
+    assert.match(html, /metadata\[0\]\.length/, "Formatting must avoid YAML metadata");
+    assert.match(html, /event\.key\.toLowerCase\(\) === "s"/, "Ctrl+S / Cmd+S should save");
+
     assert.match(html, /id="toggle-preview"/);
     assert.match(html, /id="preview-pane"/);
     assert.match(html, /URL\.createObjectURL\(image\)/);
