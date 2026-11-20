@@ -152,6 +152,12 @@ test("verified admin can list, create and read only allowlisted content paths", 
       '---\ntitle: "Impossible date"\npublished: 2026-02-31\ndraft: true\n---\n\nContent',
       '---\ntitle: ""\npublished: 2026-11-20\ndraft: true\n---\n\nContent',
       '---\ntitle: "Bad metadata"\npublished: 2026-11-20\ndraft: perhaps\n---\n\nContent',
+      '---\ntitle: "Bad tags"\npublished: 2026-11-20\ndraft: true\ntags: not-an-array\n---\n\nContent',
+      '---\ntitle: "Bad comment"\npublished: 2026-11-20\ndraft: true\ncomment: sometimes\n---\n\nContent',
+      '---\ntitle: "Bad updated date"\npublished: 2026-11-20\ndraft: true\nupdated: 2026-02-31\n---\n\nContent',
+      '---\ntitle: "Bad category"\npublished: 2026-11-20\ndraft: true\ncategory: [not-a-string]\n---\n\nContent',
+      '---\ntitle: "Duplicate title"\ntitle: "Second title"\npublished: 2026-11-20\ndraft: true\n---\n\nContent',
+      '---\ntitle: "Missing draft"\npublished: 2026-11-20\n---\n\nContent',
     ];
     const previousWrites = calls.filter((call) => call.method === "PUT").length;
     for (const content of invalidPosts) {
@@ -171,6 +177,13 @@ test("verified admin can list, create and read only allowlisted content paths", 
     assert.equal(invalidMoment.status, 400);
     assert.equal(calls.filter((call) => call.method === "PUT").length, previousWrites,
       "Invalid frontmatter must never be submitted to GitHub");
+    const validTyped = await api({
+      request: request("/api/admin/content?kind=posts", token, "POST", {
+        kind: "posts", path: "src/content/posts/demo.md",
+        content: '---\\ntitle: "Typed"\\npublished: 2026-11-20\\ndraft: true\\ncomment: false\\npinned: true\\nupdated: 2026-11-20\\ntags: ["学习", "Python"]\\n---\\n\\nContent'.replaceAll("\\\\n", "\\n"),
+      }), env,
+    });
+    assert.equal(validTyped.status, 201, "Valid optional types should still be accepted");
   } finally {
     globalThis.fetch = original;
   }
