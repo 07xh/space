@@ -28,7 +28,8 @@ async function run() {
       await article.waitFor({ state: "attached", timeout: 15000 });
       // Some diagrams may be inside expandable step-by-step explanations.
       await article.locator("details").evaluateAll((items) => items.forEach((item) => { item.open = true; }));
-      const pictures = article.locator("img");
+      // Link favicons decorate references; they are not article illustrations.
+      const pictures = article.locator("img:not(.external-link__favicon)");
       const count = await pictures.count();
       assert(count >= expected, slug + ": expected " + expected + " illustrations, got " + count);
       for (let i = 0; i < count; i++) {
