@@ -312,16 +312,21 @@ const HTML = String.raw`<!doctype html>
     if (!response.ok) throw new Error(data.error || "HTTP " + response.status);
     return data;
   }
+  function populateFiles(items, selectedPath = "") {
+    const prefix = "src/content/" + kind.value + "/";
+    files.replaceChildren();
+    for (const item of items) {
+      const label = item.path.startsWith(prefix) ? item.path.slice(prefix.length) : item.path;
+      files.add(new Option(label, item.path));
+    }
+    if (selectedPath) files.value = selectedPath;
+  }
   async function refresh() {
     if (isBusy) return;
     busy(true);
     try {
       const data = await request("GET");
-      files.replaceChildren();
-      for (const item of data.items) {
-        const option = new Option(item.path.slice(("src/content/" + kind.value + "/").length), item.path);
-        files.add(option);
-      }
+      populateFiles(data.items, filename.value);
       info("目录已更新，共 " + data.items.length + " 个文件。");
     } catch (error) { info(error.message, true); }
     finally { busy(false); }
@@ -395,9 +400,7 @@ const HTML = String.raw`<!doctype html>
       const current = filename.value;
       try {
         const data = await request("GET");
-        files.replaceChildren();
-        for (const item of data.items) files.add(new Option(item.path, item.path));
-        files.value = current;
+        populateFiles(data.items, current);
       } catch (error) {
         info("GitHub 提交已经成功（" + (result.commit || "已提交") +
           "），但文件列表刷新失败：" + error.message +
@@ -449,8 +452,7 @@ const HTML = String.raw`<!doctype html>
       info("GitHub 已确认删除：" + (result.commit || "成功") + "；可检查该次部署。");
       try {
         const data = await request("GET");
-        files.replaceChildren();
-        for (const item of data.items) files.add(new Option(item.path, item.path));
+        populateFiles(data.items);
       } catch (error) {
         info("GitHub 已确认删除（" + (result.commit || "已提交") +
           "），但文件列表刷新失败：" + error.message + "。请勿重复删除，可单独刷新。", true);
