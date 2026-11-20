@@ -55,15 +55,20 @@ jobs:
         run: |
           set -euo pipefail
           base='https://admin-acceptance.07xh-space-preview.pages.dev'
-          ready=0
+          home_status=''
           for attempt in $(seq 1 20); do
             status="$(curl --silent --show-error --max-time 15 --output /tmp/space-public-body --write-out '%{http_code}' "$base/" || true)"
-            if [ "$status" = 200 ]; then ready=1; break; fi
+            case "$status" in
+              200|302|303|307|308|401|403) home_status="$status"; break ;;
+            esac
             sleep 3
           done
-          if [ "$ready" != 1 ]; then
-            echo "::error::Isolated branch preview is not publicly reachable"
+          if [ -z "$home_status" ]; then
+            echo "::error::Isolated branch preview did not become reachable"
             exit 1
+          fi
+          if [ "$home_status" != 200 ]; then
+            echo "::notice::Branch preview homepage requires Access (HTTP $home_status). Anonymous probes can verify rejection, not confirm private Function execution; complete authorized login acceptance separately."
           fi
           for route in /admin '/api/admin/content?kind=posts' '/api/admin/deployment?commit=dddddddddddddddddddddddddddddddddddddddd'; do
             status="$(curl --silent --show-error --max-time 20 --output /tmp/space-private-body --write-out '%{http_code}' "$base$route")"
@@ -77,4 +82,4 @@ jobs:
             302|303|307|308|401|403|503) echo "Protected POST /api/admin/upload: HTTP $status" ;;
             *) echo "::error::Unsafe upload response: HTTP $status"; exit 1 ;;
           esac
-          echo 'PASS: isolated preview has live Cloudflare Functions without exposing private routes'
+          echo 'PASS: isolated preview rejects anonymous admin requests; authorized login and actual GitHub writes still require separate acceptance'
