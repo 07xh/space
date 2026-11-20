@@ -83,6 +83,19 @@ const HTML = String.raw`<!doctype html>
   let sha = "";
   let isNew = false;
   let isBusy = false;
+  let cleanContent = "";
+  let activeKind = kind.value;
+  function hasUnsavedChanges() {
+    return Boolean(filename.value) && editor.value !== cleanContent;
+  }
+  function confirmDiscard() {
+    return !hasUnsavedChanges() || confirm("当前内容尚未保存。确定放弃修改？");
+  }
+  window.addEventListener("beforeunload", (event) => {
+    if (!hasUnsavedChanges()) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
   function draftStatus(text) {
     const metadata = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
     if (!metadata) return "无有效 Frontmatter";
@@ -135,12 +148,13 @@ const HTML = String.raw`<!doctype html>
     finally { busy(false); }
   }
   async function load() {
-    if (isBusy || !files.value) return;
+    if (isBusy || !files.value || !confirmDiscard()) return;
     busy(true);
     try {
       const result = await request("GET", files.value);
       filename.value = result.path;
       editor.value = result.content;
+      cleanContent = result.content;
       sha = result.sha;
       isNew = false;
       showState();
@@ -149,7 +163,7 @@ const HTML = String.raw`<!doctype html>
     finally { busy(false); }
   }
   function create() {
-    if (isBusy) return;
+    if (isBusy || !confirmDiscard()) return;
     const name = prompt("输入文件名（仅字母、数字、连字符、下划线，不含扩展名）");
     if (!name) return;
     const slug = name.trim();
@@ -164,6 +178,7 @@ const HTML = String.raw`<!doctype html>
         "\ndescription: \"\"\ndraft: true\ncategory: \"\"\ntags: []\n---\n\n在这里编写正文。\n"
       : "---\npublished: " + today + "\ndraft: true\npinned: false\n---\n\n在这里编写动态。\n";
     sha = "";
+    cleanContent = "";
     isNew = true;
     showState();
     info("已创建本地草稿，尚未写入 GitHub；保存后才会触发预览站部署。");
@@ -186,6 +201,7 @@ const HTML = String.raw`<!doctype html>
       if (!isNew) body.sha = sha;
       const result = await request(method, "", body);
       editor.value = content;
+      cleanContent = content;
       isNew = false;
       sha = result.sha || "";
       showState();
@@ -234,6 +250,7 @@ const HTML = String.raw`<!doctype html>
       const result = await request("DELETE", "", { kind: kind.value, path: filename.value, sha });
       filename.value = "";
       editor.value = "";
+      cleanContent = "";
       sha = "";
       showState();
       info("已提交删除：" + (result.commit || "成功") + "。");
@@ -250,7 +267,12 @@ const HTML = String.raw`<!doctype html>
   get("publish").addEventListener("click", () => save(true));
   get("delete").addEventListener("click", remove);
   kind.addEventListener("change", () => {
-    sha = ""; isNew = false; filename.value = ""; editor.value = "";
+    if (!confirmDiscard()) {
+      kind.value = activeKind;
+      return;
+    }
+    activeKind = kind.value;
+    sha = ""; isNew = false; filename.value = ""; editor.value = ""; cleanContent = "";
     showState();
     refresh();
   });
