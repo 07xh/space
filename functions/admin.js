@@ -181,7 +181,7 @@ const HTML = String.raw`<!doctype html>
   }
   function busy(next) {
     isBusy = next;
-    for (const id of ["kind","files","refresh","new","load","save","publish","delete","upload","image-file","check-deploy"]) get(id).disabled = next;
+    for (const id of ["kind","files","refresh","new","load","save","publish","delete","upload","image-file","check-deploy","editor"]) get(id).disabled = next;
   }
   async function request(method, path, body) {
     const options = { method, credentials: "same-origin", headers: { "X-Requested-With": "Space-Admin" } };
@@ -233,7 +233,11 @@ const HTML = String.raw`<!doctype html>
       info("文件名格式不正确。", true);
       return;
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    // Use the author's browser-local calendar date, not UTC (which can be
+    // yesterday during early morning hours in Asia/Tokyo).
+    const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0")].join("-");
     filename.value = "src/content/" + kind.value + "/" + slug + ".md";
     editor.value = kind.value === "posts"
       ? "---\ntitle: \"新文章\"\npublished: " + today +
