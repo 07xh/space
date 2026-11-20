@@ -10,6 +10,22 @@
 - **唯一写入仓库**：`07xh/space` 的 `main`，只允许 `src/content/posts/` 或 `src/content/dynamic/` 下受控的 Markdown 文件。
 - **禁止触碰**：旧 `07xh/Firefly`、旧站的管理员账号/密钥/会话 KV、`0701000.xyz` 及其 DNS/部署绑定。
 
+## 与 GitHub Actions 自动部署的关系
+
+**保持原有方式，不启用 Cloudflare 的 GitHub 自动构建。**
+
+`07xh/space` 的 `main` 收到提交后，现有 `.github/workflows/deploy-preview.yml` 使用 Node 22 + pnpm 构建 Astro 静态站，再由 `cloudflare/wrangler-action@v4` 执行：
+
+```bash
+wrangler pages deploy dist --project-name=07xh-space-preview --branch=main
+```
+
+Cloudflare Pages 的 Wrangler 直接上传支持仓库**根目录**下的 `functions/`，会在部署静态资源时自动上传 Functions；它不是把 `functions/` 拷进 `dist/`，也不需要为后台另外创建部署项目或 Actions 工作流。
+
+当根目录存在 Functions 时，部署 workflow 先运行管理员访问控制单元测试及 Wrangler Functions 打包，然后按原命令上传。上传后对未登录访问的 `/admin`、`/api/admin/content`、`/api/admin/upload` 做拒绝响应探测（Access 登录重定向或 HTTP 401/403/503），并确认公共首页未坏；任何管理端点意外返回 200/404 或其他异常状态都让 Actions 报错。这些探测只能证明匿名访问被拦截，不能代替真正的管理员登录与写入验收。
+
+所有内容写入仍先发生在 GitHub（单独的细粒度 Token），随后由 GitHub Actions 触发构建，最后 Wrangler 上传预览站。提交成功不代表部署成功。原有 `SPACE_WALINE_SERVER_URL` 变量继续传递给构建。
+
 ## 部署前的必需配置（只在独立预览 Pages 项目配置）
 
 1. 为独立预览域名的 `/admin` 和 `/api/admin/*` 创建 Cloudflare Access 私有应用和**仅本人**的访问策略，不要给整个网站套管理策略。
