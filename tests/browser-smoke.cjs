@@ -99,7 +99,7 @@ async function checkHeroAutoplay(browser){
   const popupPromise=page.waitForEvent("popup");
   await page.locator("a[data-scene-frame]").first().click();
   const posterPage=await popupPromise;
-  await posterPage.waitForLoadState("domcontentloaded");
+  await posterPage.waitForURL(/\/brand\/xiaohuang-live-poster\.webp(?:\?.*)?$/, {waitUntil:"commit", timeout:15000});
   assert(new URL(posterPage.url()).pathname.endsWith("xiaohuang-live-poster.webp"),"opening image click must open the retained full-size illustration");
   await posterPage.close();
   await page.screenshot({path:output+"/desktop-project-promos.png",fullPage:false});
