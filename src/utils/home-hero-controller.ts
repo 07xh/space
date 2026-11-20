@@ -5,6 +5,7 @@ import { initHomeHeroDialogue } from "@/utils/home-hero-dialogue";
 import { createFlyText, type FlyTextHandle } from "@/utils/home-hero-fly-text";
 import { createHeroPhotoFramePaths } from "@/utils/home-hero-motion";
 import { initHomeHeroRain } from "@/utils/home-hero-rain";
+import { initHomeHeroLiveMedia } from "@/utils/home-hero-live-media";
 import {
 	type HomeHeroWordmarkController,
 	initHomeHeroWordmark,
@@ -224,6 +225,7 @@ export function mountHomeHero(): () => void {
 	);
 	const dialogue = initHomeHeroDialogue(dialogueRoot);
 	const rain = initHomeHeroRain(hero, config.rain);
+	const liveMedia = initHomeHeroLiveMedia(hero);
 	const reducedMotionQuery = window.matchMedia(
 		"(prefers-reduced-motion: reduce)",
 	);
@@ -313,6 +315,15 @@ export function mountHomeHero(): () => void {
 	 */
 	let heroInView = true;
 	let rainWanted = false;
+	let liveTimelineTime = 0;
+	const syncLiveMedia = () => {
+		const canPlay = heroInView && !document.hidden && !reducedMotionQuery.matches;
+		// 碎片拼合前不解码主图；叠图真正滑入前也不抢占第二路解码。
+		liveMedia.sync(
+			canPlay && liveTimelineTime >= 0.75,
+			canPlay && liveTimelineTime >= INTRO_REVEAL_TIME,
+		);
+	};
 	const syncRain = () => {
 		rain.setActive(rainWanted && heroInView && !reducedMotionQuery.matches);
 	};
@@ -320,15 +331,24 @@ export function mountHomeHero(): () => void {
 		(entries) => {
 			for (const entry of entries) heroInView = entry.isIntersecting;
 			syncRain();
+			syncLiveMedia();
 		},
 		// 留一点提前量，滚回首屏时雨已经在跑，不会看到空档
 		{ rootMargin: "15% 0px" },
 	);
 	heroVisibility.observe(hero);
+	document.addEventListener("visibilitychange", syncLiveMedia, {
+		signal: abortController.signal,
+	});
+	reducedMotionQuery.addEventListener("change", syncLiveMedia, {
+		signal: abortController.signal,
+	});
 
 	const updateSceneState = (progress: number) => {
 		if (disposed) return;
 		const timelineTime = progress * (timeline?.duration() ?? 1);
+		liveTimelineTime = timelineTime;
+		syncLiveMedia();
 		const rainActive = timelineTime >= RAIN_ACTIVATE_TIME;
 		const dialogueVisible = timelineTime >= DIALOGUE_REVEAL_TIME;
 		const greetingWanted = timelineTime >= GREETING_REVEAL_TIME;
@@ -1071,6 +1091,7 @@ export function mountHomeHero(): () => void {
 		// 合并刷新是跨层共享的，不能在 Hero 单独卸载时取消其它层的请求。
 		window.clearTimeout(flyLayoutTimer);
 		heroVisibility.disconnect();
+		liveMedia.destroy();
 		rain.destroy();
 		dialogue.destroy();
 		abortController.abort();
