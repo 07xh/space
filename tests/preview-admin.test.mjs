@@ -46,6 +46,7 @@ async function oauthFlow(identity = { id: 313783339, login: "07xh" }) {
   const original = globalThis.fetch;
   let exchanges = 0;
   globalThis.fetch = async (url, init) => {
+    assert.equal(init.redirect, "manual", "OAuth subrequests must use a Workers-supported no-follow mode");
     if (String(url) === "https://github.com/login/oauth/access_token") {
       exchanges++;
       const body = new URLSearchParams(init.body);
@@ -103,17 +104,18 @@ test("GitHub callback fails closed without leaking upstream tokens or secrets", 
   const { onRequestGet: callback } = await import("../functions/api/auth/callback.js");
   const original = globalThis.fetch;
   try {
-    for (const mode of ["network", "exchange-status", "malformed-token", "identity-status"]) {
+    for (const mode of ["network", "exchange-status", "exchange-redirect", "malformed-token", "identity-status", "identity-redirect"]) {
       const start = await login({ request: request("/api/auth/login"), env: githubEnv });
       const target = new URL(start.headers.get("location"));
       const cookie = start.headers.get("set-cookie").split(";")[0];
       globalThis.fetch = async (url) => {
         if (mode === "network") throw new Error("private-upstream-detail");
         if (mode === "exchange-status") return new Response("private-upstream-detail", { status: 500 });
+        if (mode === "exchange-redirect") return new Response(null, { status: 302, headers: { Location: "https://evil.example/steal" } });
         if (mode === "malformed-token") return Response.json({ error: "bad_verification_code" });
         return String(url).endsWith("access_token")
           ? Response.json({ access_token: "private-oauth-token", token_type: "bearer" })
-          : new Response("private-upstream-detail", { status: 401 });
+          : new Response("private-upstream-detail", { status: mode === "identity-redirect" ? 302 : 401 });
       };
       const context = { request: request("/api/auth/callback?code=valid&state=" + target.searchParams.get("state"), null, "GET", null, { Cookie: cookie }), env: githubEnv };
       const result = await callback(context);
@@ -123,8 +125,10 @@ test("GitHub callback fails closed without leaking upstream tokens or secrets", 
       assert.equal(failure.code, {
         network: "github_exchange_unavailable",
         "exchange-status": "github_exchange_unavailable",
+        "exchange-redirect": "github_exchange_unavailable",
         "malformed-token": "github_bad_verification_code",
         "identity-status": "github_identity_unavailable",
+        "identity-redirect": "github_identity_unavailable",
       }[mode]);
       assert.ok(result.headers.getSetCookie().every((value) => value.includes("Max-Age=0")));
       const now = Date.now;
