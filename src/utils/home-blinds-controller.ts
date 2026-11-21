@@ -516,15 +516,17 @@ function setupScenes(context: SetupContext) {
 			});
 		}
 
-		standTransition?.kill();
-		gsap.set(stands, { autoAlpha: 1 });
-		standTransition = gsap.to(standImages, {
-			autoAlpha: 1,
-			rotationX: 0,
-			duration: 0.78,
-			ease: "power4.out",
-			overwrite: "auto",
-		});
+		if (standImages.length > 0) {
+			standTransition?.kill();
+			gsap.set(stands, { autoAlpha: 1 });
+			standTransition = gsap.to(standImages, {
+				autoAlpha: 1,
+				rotationX: 0,
+				duration: 0.78,
+				ease: "power4.out",
+				overwrite: "auto",
+			});
+		}
 	};
 
 	/**
@@ -553,17 +555,19 @@ function setupScenes(context: SetupContext) {
 			bubbleWall.setPaused(true);
 		}
 
-		standTransition?.kill();
-		standTransition = gsap.to(standImages, {
-			autoAlpha: 0,
-			duration: 0.46,
-			ease: "power2.in",
-			overwrite: "auto",
-			onComplete: () => {
-				gsap.set(standImages, { rotationX: 88 });
-				gsap.set(stands, { autoAlpha: 0 });
-			},
-		});
+		if (standImages.length > 0) {
+			standTransition?.kill();
+			standTransition = gsap.to(standImages, {
+				autoAlpha: 0,
+				duration: 0.46,
+				ease: "power2.in",
+				overwrite: "auto",
+				onComplete: () => {
+					gsap.set(standImages, { rotationX: 88 });
+					gsap.set(stands, { autoAlpha: 0 });
+				},
+			});
+		}
 	};
 
 	// 循环暂停时保留当前帧，回到前台或滚回本层后继续。
@@ -643,7 +647,13 @@ function setupScenes(context: SetupContext) {
 			lastPaintedScene.step === step &&
 			lastPaintedScene.live === layerLive
 		) return;
-		lastPaintedScene = { progress: sceneProgress, visible: isVisible, intro, step, live: layerLive };
+		lastPaintedScene = {
+			progress: sceneProgress,
+			visible: isVisible,
+			intro,
+			step,
+			live: layerLive,
+		};
 		// 卡片本体随入场进度滑入淡入，不是一到位置就整张亮出来
 		const appear = smoothstep(clamp(intro / CARD_APPEAR_SHARE, 0, 1));
 		let moving = false;
@@ -730,7 +740,9 @@ function setupScenes(context: SetupContext) {
 		lastRevealOpacity = revealOpacity;
 		gsap.set(stage, { autoAlpha: visible ? 1 : 0 });
 		gsap.set(stageBackground, { autoAlpha: phase === "reveal" ? 1 : 0 });
-		gsap.set([stageRevealGlass, stageHeadlineWindow], { autoAlpha: revealOpacity });
+		gsap.set([stageRevealGlass, stageHeadlineWindow], {
+			autoAlpha: revealOpacity,
+		});
 		gsap.set(portal, { autoAlpha: phase === "shrink" ? 1 : 0 });
 	}
 
