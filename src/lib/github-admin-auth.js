@@ -1,5 +1,12 @@
 // 登录只使用公开身份；发布权限仍由独立、限仓库的 Contents Secret 提供。
-export const ADMIN_ORIGIN = "https://07xh-space-preview.pages.dev";
+// 双域名过渡：域名迁移期间保留原预览入口，Cookie 和会话只在同源有效。
+export const ADMIN_ORIGIN = "https://0701000.xyz";
+export const PREVIEW_ORIGIN = "https://07xh-space-preview.pages.dev";
+const ADMIN_ORIGINS = new Set([ADMIN_ORIGIN, PREVIEW_ORIGIN]);
+function allowedOrigin(request) {
+	const origin = new URL(request.url).origin;
+	return ADMIN_ORIGINS.has(origin) ? origin : null;
+}
 const ADMIN_ID = 313783339;
 const ADMIN_LOGIN = "07xh";
 const FLOW_COOKIE = "__Host-space-oauth";
@@ -117,7 +124,7 @@ async function sign(payload, env) {
 	);
 }
 
-async function verify(value, type, env) {
+async function verify(value, type, env, origin) {
 	if (!value || value.length > 4096) return null;
 	try {
 		const parts = value.split(".");
@@ -136,7 +143,7 @@ async function verify(value, type, env) {
 		const lifetime = type === "flow" ? 600 : type === "session" ? 28800 : type === "trusted" ? TRUSTED_SECONDS : 0;
 		if (
 			payload.type !== type ||
-			payload.origin !== ADMIN_ORIGIN ||
+			payload.origin !== origin ||
 			!Number.isInteger(payload.exp) ||
 			!Number.isInteger(payload.iat) ||
 			payload.exp <= now ||
@@ -150,35 +157,37 @@ async function verify(value, type, env) {
 	}
 }
 
-function claims(type, seconds) {
+function claims(type, seconds, origin) {
 	const now = Math.floor(Date.now() / 1000);
-	return { type, origin: ADMIN_ORIGIN, iat: now, exp: now + seconds };
+	return { type, origin, iat: now, exp: now + seconds };
 }
 
 export async function requireGitHubSession(request, env) {
 	if (!configured(env))
 		return error("GitHub 后台登录未配置，已禁用访问。", 503);
-	if (new URL(request.url).origin !== ADMIN_ORIGIN)
-		return error("请使用后台的正式入口。", 403);
+	const origin = allowedOrigin(request);
+	if (!origin) return error("请使用后台的正式入口。", 403);
 	const session = await verify(
 		readCookie(request, SESSION_COOKIE),
 		"session",
 		env,
+		origin,
 	);
 	if (adminIdentity(session)) return null;
 	// Trusted devices are independently signed, expire after 30 days and cannot self-extend.
-	const trusted = await verify(readCookie(request, TRUSTED_COOKIE), "trusted", env);
+	const trusted = await verify(readCookie(request, TRUSTED_COOKIE), "trusted", env, origin);
 	return adminIdentity(trusted) ? null : error("请先通过 GitHub 登录管理员账号。", 401);
 }
 
 export async function refreshTrustedSessionCookie(request, env) {
-	if (!configured(env) || new URL(request.url).origin !== ADMIN_ORIGIN) return null;
-	const trusted = await verify(readCookie(request, TRUSTED_COOKIE), "trusted", env);
+	const origin = allowedOrigin(request);
+	if (!configured(env) || !origin) return null;
+	const trusted = await verify(readCookie(request, TRUSTED_COOKIE), "trusted", env, origin);
 	if (!adminIdentity(trusted)) return null;
-	const existing = await verify(readCookie(request, SESSION_COOKIE), "session", env);
+	const existing = await verify(readCookie(request, SESSION_COOKIE), "session", env, origin);
 	const now = Math.floor(Date.now() / 1000);
 	if (adminIdentity(existing) && existing.exp - now > 3600) return null;
-	const session = await sign({ ...claims("session", 28800), id: ADMIN_ID, login: ADMIN_LOGIN }, env);
+	const session = await sign({ ...claims("session", 28800, origin), id: ADMIN_ID, login: ADMIN_LOGIN }, env);
 	return cookie(SESSION_COOKIE, session, 28800);
 }
 
@@ -186,8 +195,8 @@ export async function githubLogin({ request, env }) {
 	if (!configured(env))
 		return error("GitHub 后台登录未配置，已禁用访问。", 503);
 	const urlRequest = new URL(request.url);
-	if (urlRequest.origin !== ADMIN_ORIGIN)
-		return error("请使用后台的正式入口。", 403);
+	const origin = allowedOrigin(request);
+	if (!origin) return error("请使用后台的正式入口。", 403);
 	if (!urlRequest.searchParams.has("begin")) return loginChoicePage();
 	if (urlRequest.searchParams.get("begin") !== "1" ||
 		[...urlRequest.searchParams.keys()].some((name) => !["begin", "remember"].includes(name)) ||
@@ -196,11 +205,11 @@ export async function githubLogin({ request, env }) {
 	const remember = urlRequest.searchParams.get("remember") === "1";
 	const state = base64url(crypto.getRandomValues(new Uint8Array(32)));
 	const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
-	const flow = await sign({ ...claims("flow", 600), state, verifier, remember }, env);
+	const flow = await sign({ ...claims("flow", 600, origin), state, verifier, remember }, env);
 	const url = new URL("https://github.com/login/oauth/authorize");
 	url.search = new URLSearchParams({
 		client_id: env.SPACE_GITHUB_CLIENT_ID,
-		redirect_uri: ADMIN_ORIGIN + "/api/auth/callback",
+		redirect_uri: origin + "/api/auth/callback",
 		scope: "",
 		state,
 		code_challenge: base64url(
@@ -220,8 +229,9 @@ export async function githubCallback({ request, env }) {
 	if (!configured(env))
 		return error("GitHub 后台登录未配置，已禁用访问。", 503);
 	const url = new URL(request.url);
-	if (url.origin !== ADMIN_ORIGIN) return error("请使用后台的正式入口。", 403);
-	const flow = await verify(readCookie(request, FLOW_COOKIE), "flow", env);
+	const origin = allowedOrigin(request);
+	if (!origin) return error("请使用后台的正式入口。", 403);
+	const flow = await verify(readCookie(request, FLOW_COOKIE), "flow", env, origin);
 	let result;
 	if (
 		!flow?.state ||
@@ -252,7 +262,7 @@ export async function githubCallback({ request, env }) {
 						client_id: env.SPACE_GITHUB_CLIENT_ID,
 						client_secret: env.SPACE_GITHUB_CLIENT_SECRET,
 						code: url.searchParams.get("code"),
-						redirect_uri: ADMIN_ORIGIN + "/api/auth/callback",
+						redirect_uri: origin + "/api/auth/callback",
 						code_verifier: flow.verifier,
 					}).toString(),
 					signal: AbortSignal.timeout(8000),
@@ -296,7 +306,7 @@ export async function githubCallback({ request, env }) {
 			} else {
 				// 不在 Cookie、前端或日志中保存 GitHub OAuth Token。
 				const session = await sign(
-					{ ...claims("session", 28800), id: user.id, login: user.login },
+					{ ...claims("session", 28800, origin), id: user.id, login: user.login },
 					env,
 				);
 				result = response(null, 302, {
@@ -305,7 +315,7 @@ export async function githubCallback({ request, env }) {
 				});
 				if (flow.remember === true) {
 					const trusted = await sign(
-						{ ...claims("trusted", TRUSTED_SECONDS), id: user.id, login: user.login },
+						{ ...claims("trusted", TRUSTED_SECONDS, origin), id: user.id, login: user.login },
 						env,
 					);
 					result.headers.append("set-cookie", cookie(TRUSTED_COOKIE, trusted, TRUSTED_SECONDS));
@@ -332,9 +342,10 @@ export async function githubCallback({ request, env }) {
 
 export function githubLogout({ request }) {
 	if (request.method !== "POST") return response(null, 405, { Allow: "POST" });
+	const origin = allowedOrigin(request);
 	if (
-		new URL(request.url).origin !== ADMIN_ORIGIN ||
-		request.headers.get("Origin") !== ADMIN_ORIGIN ||
+		!origin ||
+		request.headers.get("Origin") !== origin ||
 		request.headers.get("X-Requested-With") !== "Space-Admin"
 	)
 		return error("仅允许同源管理界面退出登录。", 403);

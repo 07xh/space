@@ -28,10 +28,11 @@ upstream visual frameworks by copying partial styles on top of each other.
 
 ## Important
 
-- The 0701000.xyz production domain still points to the existing Firefly site.
-- The previous custom 07xh/space front-end source was removed during the port.
-- The old repo history remains accessible, so rollback is possible.
-- No Cloudflare deployment or production write API is enabled in this branch.
+- **Production target:** https://0701000.xyz (new `07xh/space` Pages project), once DNS and the Cloudflare Pages custom-domain status are confirmed.
+- **Preview endpoint:** https://07xh-space-preview.pages.dev (kept for deployment smoke tests during migration).
+- Original Firefly is retired from production; keep its repository archived as a rollback/content reference rather than deleting it.
+- GitHub Actions performs the build, Wrangler uploads to Cloudflare Pages; Pages does not rebuild the site.
+- GitHub OAuth uses the existing app and a per-origin signed session. The new callback must be added to that app before switching domains.
 
 ## Local start
 

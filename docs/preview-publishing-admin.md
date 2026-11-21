@@ -1,5 +1,15 @@
 # 小慌博客：独立预览站发布后台验收
 
+## 正式域名迁移：0701000.xyz（2026-11-21）
+
+- 正式博客：`https://0701000.xyz`，新后台：`https://0701000.xyz/admin`，仓库：`07xh/space`。
+- 沿用现有 `07xh-space-preview` Pages 项目、`GitHub Actions → Wrangler` 上传部署和原有 GitHub OAuth App；不要新建 Pages 项目、OAuth App，也不要变更 GitHub 密钥。
+- 为了避免切换中断，Functions 暂时同时接受 `https://0701000.xyz` 和 `https://07xh-space-preview.pages.dev`。每一个域名分别签发、验证 `__Host-` Cookie，绝不跨域复用。后台仍然强制验证唯一的 `07xh` 管理员、有效期和同源写入。
+- **必须在现有 GitHub OAuth App 中额外添加回调** `https://0701000.xyz/api/auth/callback`，保留原来的 `https://07xh-space-preview.pages.dev/api/auth/callback`。GitHub 2026 年文档支持 OAuth App 添加多个回调（不要启用通配符）。可将 OAuth App 的 Homepage URL 修改为 `https://0701000.xyz`。这些设置不在代码仓库内，代码提交无法代替 GitHub 后台操作。
+- 在 Cloudflare Pages 中，将旧项目上的 `0701000.xyz` 自定义域名解绑，检查冲突 DNS 后，进入 **Workers & Pages → 07xh-space-preview → Custom domains → Set up a domain** 绑定 `0701000.xyz`。根域名必须由同账号 Cloudflare Zone 管理。不要只修改 DNS 而跳过 Pages 的添加域名步骤。
+- 绑定后核验 Pages Custom domains 显示 Active、HTTPS 有效，`/` 返回新博客内容；匿名 `/admin` 不得直接显示后台、匿名 `/api/admin/content?kind=posts` 必须拒绝；由站长本人通过 GitHub OAuth 登录、读文章列表和保存测试草稿，再核验 Actions 部署。
+- **切流前的状态边界**：代码和 CI 通过不代表 DNS、Cloudflare 绑定、OAuth App 的新回调已经修改，未核验前不能声称正式域名上线成功；保留原 Firefly 仓库作为历史备份，不自动删除。
+
 ## GitHub 登录（免 Zero Trust 方案）
 
 登录入口仍为 `https://07xh-space-preview.pages.dev/admin`。配置 GitHub OAuth 后，未登录访问会跳转 GitHub；管理 API 保持 HTTP 401。只允许 GitHub 用户 ID `313783339` 且用户名为 `07xh` 的账号。

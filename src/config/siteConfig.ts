@@ -20,12 +20,10 @@ export const siteConfig: SiteConfig = {
 	},
 
 	// 站点 URL
-	// Cloudflare Pages preview builds use their actual preview URL for SEO metadata.
-	// A future custom domain can override this with SPACE_SITE_URL.
+	// 正式域名；测试构建可通过 SPACE_SITE_URL 显式覆盖。
 	site_url:
 		process.env.SPACE_SITE_URL ||
-		process.env.CF_PAGES_URL ||
-		"https://space.0701000.xyz",
+		"https://0701000.xyz",
 
 	// 站点描述
 	// 同时用作：首页与各功能页的 <meta name="description"> 兜底、JSON-LD 里
