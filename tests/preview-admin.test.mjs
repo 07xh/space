@@ -557,7 +557,7 @@ test("Workers deploy is GitHub Actions only, with private-route guard", () => {
   assert.match(yaml, /push:\s*\n\s*branches:\s*\[main\]/);
   assert.match(yaml, /SPACE_WALINE_SERVER_URL:\s*\$\{\{\s*vars\.SPACE_WALINE_SERVER_URL\s*\}\}/);
   assert.match(yaml, /cloudflare\/wrangler-action@v4/);
-  assert.match(yaml, /command: deploy --config wrangler\\.jsonc/);
+  assert.match(yaml, /command: deploy --config wrangler\.jsonc/);
   assert.doesNotMatch(yaml, /command: pages deploy/);
   const config = JSON.parse(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
   assert.equal(config.main, "./.worker-dist/index.js");
