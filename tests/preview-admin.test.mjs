@@ -118,7 +118,14 @@ test("GitHub callback fails closed without leaking upstream tokens or secrets", 
       const context = { request: request("/api/auth/callback?code=valid&state=" + target.searchParams.get("state"), null, "GET", null, { Cookie: cookie }), env: githubEnv };
       const result = await callback(context);
       assert.equal(result.status, 502);
-      assert.doesNotMatch(await result.text(), /private-|test-client-secret/);
+      const failure = await result.json();
+      assert.doesNotMatch(JSON.stringify(failure), /private-|test-client-secret/);
+      assert.equal(failure.code, {
+        network: "github_exchange_unavailable",
+        "exchange-status": "github_exchange_unavailable",
+        "malformed-token": "github_bad_verification_code",
+        "identity-status": "github_identity_unavailable",
+      }[mode]);
       assert.ok(result.headers.getSetCookie().every((value) => value.includes("Max-Age=0")));
       const now = Date.now;
       try {

@@ -190,6 +190,8 @@ export async function githubCallback({ request, env }) {
 	) {
 		result = error("GitHub 登录已取消或验证已失效，请重新登录。", 400);
 	} else {
+		let failureCode = "github_exchange_unavailable";
+		let providerStatus;
 		try {
 			const exchange = await fetch(
 				"https://github.com/login/oauth/access_token",
@@ -210,14 +212,27 @@ export async function githubCallback({ request, env }) {
 					signal: AbortSignal.timeout(8000),
 				},
 			);
+			providerStatus = exchange.status;
 			if (!exchange.ok) throw new Error("Exchange unavailable");
+			failureCode = "github_exchange_refused";
 			const token = await exchange.json();
+			if (
+				[
+					"incorrect_client_credentials",
+					"redirect_uri_mismatch",
+					"bad_verification_code",
+				].includes(token.error)
+			) {
+				failureCode = `github_${token.error}`;
+			}
 			if (
 				typeof token.access_token !== "string" ||
 				!token.access_token ||
 				token.token_type?.toLowerCase() !== "bearer"
 			)
 				throw new Error("Exchange refused");
+			failureCode = "github_identity_unavailable";
+			providerStatus = undefined;
 			const identity = await fetch("https://api.github.com/user", {
 				headers: {
 					Authorization: "Bearer " + token.access_token,
@@ -227,6 +242,7 @@ export async function githubCallback({ request, env }) {
 				redirect: "error",
 				signal: AbortSignal.timeout(8000),
 			});
+			providerStatus = identity.status;
 			if (!identity.ok) throw new Error("Identity unavailable");
 			const user = await identity.json();
 			if (user.id !== ADMIN_ID || user.login !== ADMIN_LOGIN) {
@@ -243,7 +259,15 @@ export async function githubCallback({ request, env }) {
 				});
 			}
 		} catch {
-			result = error("GitHub 登录验证暂不可用，请重新登录。", 502);
+			// 只返回有限的故障类别和 HTTP 状态，绝不回显上游正文或凭据。
+			result = response(
+				JSON.stringify({
+					error: "GitHub 登录验证暂不可用，请重新登录。",
+					code: failureCode,
+					providerStatus,
+				}),
+				502,
+			);
 		}
 	}
 	result.headers.append("set-cookie", cookie(FLOW_COOKIE, "", 0));
