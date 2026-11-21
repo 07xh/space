@@ -25,8 +25,6 @@ const marqueeTapes = config.scenes.marquee.tapes.filter(
 );
 /** 每条胶带初始铺几份文字，控制器挂载后按胶带宽度补足 */
 const MARQUEE_SEED_REPEAT = 4;
-/** 气泡槽位上限：控制器按权重排出不重复队列，飘完一条回收再填下一条 */
-const BUBBLE_COUNT = 12;
 const bubbleMessages = config.scenes.bubbleMessages.filter(
 	(message) => (message.text ?? "").trim().length > 0,
 );
@@ -43,6 +41,8 @@ const commentBubble = {
 	lang: commentConfig.waline?.lang ?? "zh-CN",
 	weight: Math.max(1, config.scenes.commentBubble.weight),
 };
+// 没有配置留言且未启用评论来源时，不生成 12 个空的无限漂移动画。
+const BUBBLE_COUNT = bubbleMessages.length > 0 || commentBubble.enabled ? 12 : 0;
 const runtimeConfig = {
 	reveal: {
 		headline: {
