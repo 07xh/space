@@ -173,9 +173,10 @@ test("GitHub login offers explicit trusted-device choice without changing OAuth 
   const chooser = await login({ request: request("/api/auth/login"), env: githubEnv });
   assert.equal(chooser.status, 200);
   // Chromium checks the 302 target of a form navigation against form-action.
-  // Permit only the GitHub OAuth origin, not arbitrary external form targets.
-  assert.match(chooser.headers.get("content-security-policy"), /form-action 'self' https:\/\/github\\.com;/);
-  assert.doesNotMatch(chooser.headers.get("content-security-policy"), /form-action [^;]*\\*/);
+  // Keep the OAuth provider narrowly allowlisted rather than disabling CSP.
+  const csp = chooser.headers.get("content-security-policy");
+  assert.ok(csp.includes("form-action 'self' https://github.com;"));
+  assert.equal(csp.includes("form-action *"), false);
   const page = await chooser.text();
   assert.match(page, /信任此设备/);
   assert.match(page, /name="remember"/);
