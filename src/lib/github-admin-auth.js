@@ -68,7 +68,7 @@ function loginChoicePage() {
 		"content-type": "text/html; charset=utf-8", "cache-control": "private, no-store",
 		"x-content-type-options": "nosniff", "x-frame-options": "DENY",
 		"referrer-policy": "no-referrer",
-		"content-security-policy": "default-src 'none'; style-src 'nonce-" + nonce + "'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+		"content-security-policy": "default-src 'none'; style-src 'nonce-" + nonce + "'; form-action 'self' https://github.com; base-uri 'none'; frame-ancestors 'none'",
 	} });
 }
 
