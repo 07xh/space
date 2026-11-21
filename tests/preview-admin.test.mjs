@@ -177,7 +177,12 @@ test("GitHub login offers explicit trusted-device choice without changing OAuth 
   const csp = chooser.headers.get("content-security-policy");
   assert.ok(csp.includes("form-action 'self' https://github.com;"));
   assert.equal(csp.includes("form-action *"), false);
+  assert.match(csp, /script-src 'nonce-[0-9a-f]{32}'/);
   const page = await chooser.text();
+  // Direct navigation avoids mobile browsers blocking the form's 302 OAuth redirect.
+  assert.match(page, /id="direct-login" href="\/api\/auth\/login\?begin=1"/);
+  assert.match(page, /window\.location\.assign\(target\(\)\)/);
+  assert.match(page, /remember\.checked\?"&remember=1":""/);
   assert.match(page, /信任此设备/);
   assert.match(page, /name="remember"/);
   assert.match(page, /使用 GitHub 登录/);
