@@ -9,7 +9,7 @@
 - Pages Production 配置 `SPACE_GITHUB_CLIENT_ID`；将 `SPACE_GITHUB_CLIENT_SECRET` 和至少 32 字节随机值 `SPACE_SESSION_SECRET` 保存为加密 Secret。
 - 写入仍使用独立加密 Secret `SPACE_GITHUB_CONTENTS_TOKEN`，仅授权 `07xh/space`、Contents: Read and write。
 - 此方案无需填写下述三个 Access 身份变量。只要出现任意 OAuth 配置项，就仅使用 GitHub 会话；配置为空或不完整返回 503，不能回退到 Access。
-- OAuth 回调校验 state、S256 PKCE 和 GitHub 实时身份，随后丢弃 OAuth Token。会话使用签名、Secure、HttpOnly、SameSite=Lax、无 Domain 的 Cookie，有效期 8 小时。退出会清除当前浏览器 Cookie；轮换会话 Secret 可立即使所有会话失效。GitHub 侧撤销 OAuth 授权不会立即使已签发的 8 小时会话失效。
+- OAuth 回调校验 state、S256 PKCE 和 GitHub 实时身份，随后丢弃 OAuth Token。普通会话保持原来的 8 小时；登录页明确勾选「信任此设备」后，额外签发 30 天绝对有效期的设备 Cookie。两者均使用签名、Secure、HttpOnly、SameSite=Lax、无 Domain；当短期会话过期且设备 Cookie 仍有效时，可不访问 GitHub 而重新获得 8 小时会话，但不能延长 30 天设备授权的绝对期限。退出清除当前浏览器的全部认证 Cookie；轮换 `SPACE_SESSION_SECRET` 可使所有设备会话失效。**不支持远程撤销单个其他设备**（需要新增服务端会话存储，目前未引入），GitHub 侧撤销 OAuth 授权也不会立即撤销已签发的本地会话。
 - 正式域名之外的部署别名禁止使用该登录会话。原有 Access 实现仅供未配置任何 OAuth 项的部署使用；两种认证不会同时放行。
 - 修改配置后仍通过现有 GitHub Actions → Wrangler 上传。本文后续 Access 验收说明仅适用于 Access 模式。GitHub 模式还需验收本人登录、其他账号拒绝、退出及真实草稿写入与删除。
 
