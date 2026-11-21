@@ -64,7 +64,19 @@ jobs:
             exit 1
           fi
           base="${DEPLOYMENT_URL%/}"
-          curl --fail --silent --show-error --max-time 30 --output /dev/null "${base}/"
+          test -s dist/index.html || { echo "::error::Astro dist/index.html is missing"; exit 1; }
+          echo "Worker endpoint: ${base}"
+          echo "Checking homepage and /index.html separately to distinguish route mapping from workers.dev availability"
+          for route in / /index.html; do
+            status="$(curl --silent --show-error --max-time 30 --output /tmp/space-worker-public-check.txt --write-out '%{http_code}' "${base}${route}" || true)"
+            echo "GET ${route}: HTTP ${status}"
+            if [ "${status}" != 200 ]; then
+              head -c 800 /tmp/space-worker-public-check.txt || true
+              echo
+              echo "::error::Worker public endpoint returned HTTP ${status} for ${route}. Verify workers.dev is enabled and static asset routing is correct before domain cutover."
+              exit 1
+            fi
+          done
           for route in /admin '/api/admin/content?kind=posts' '/api/admin/deployment?commit=dddddddddddddddddddddddddddddddddddddddd' /api/auth/login; do
             status="$(curl --silent --show-error --max-time 20 --output /tmp/space-worker-private-check.txt --write-out '%{http_code}' "${base}${route}")"
             case "$status" in
