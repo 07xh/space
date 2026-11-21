@@ -308,6 +308,8 @@ function setupScenes(context: SetupContext) {
 	);
 	const lastSceneIndex = Math.max(0, sceneCount - 1);
 	const previousSceneX = Array.from({ length: sceneCount }, () => Number.NaN);
+	// 只对实际进入画幅的明信片提交绘制更新，离屏卡片只在退场时隐藏一次。
+	const renderedCardVisible = Array.from({ length: sceneCount }, () => false);
 	const rotationSetters = swings.slice(0, sceneCount).map((swing) =>
 		gsap.quickTo(swing, "rotation", {
 			duration: 0.28,
@@ -449,7 +451,11 @@ function setupScenes(context: SetupContext) {
 	 * 首幕是收缩门的接收者：图片原地不动，只有纸面背景渐入 + 描边绕一圈；
 	 * 其余幕纸面早已就位，卡面本体错峰滑入淡入。往回滚时整段动画按来路退回。
 	 */
+	let lastRenderedIntro = Number.NaN;
 	const renderIntro = (intro: number) => {
+		// 停留在任一幕期间 intro 不再变化；避免每帧重写胶带 clip-path 与全部卡片描边。
+		if (intro === lastRenderedIntro) return;
+		lastRenderedIntro = intro;
 		marquee.renderIntro(intro);
 		const paperFade = smoothstep(clamp(intro / CARD_APPEAR_SHARE, 0, 1));
 		cardOutlines.forEach((outline, index) => {
@@ -500,13 +506,15 @@ function setupScenes(context: SetupContext) {
 		actVisible = true;
 		requestCommentBubble();
 
-		bubbleTransition?.kill();
-		gsap.set(bubbleLayer, { autoAlpha: 1 });
-		bubblePop?.kill();
-		bubblePop = popBubbles(bubbleBodies, {
-			each: BUBBLE_POP_STAGGER,
-			from: "random",
-		});
+		if (bubbleBodies.length > 0) {
+			bubbleTransition?.kill();
+			gsap.set(bubbleLayer, { autoAlpha: 1 });
+			bubblePop?.kill();
+			bubblePop = popBubbles(bubbleBodies, {
+				each: BUBBLE_POP_STAGGER,
+				from: "random",
+			});
+		}
 
 		standTransition?.kill();
 		gsap.set(stands, { autoAlpha: 1 });
@@ -528,18 +536,22 @@ function setupScenes(context: SetupContext) {
 	const hideAct = () => {
 		if (!actVisible) return;
 		actVisible = false;
+		// 退场改写了跑马灯裁切；下次重入必须重新绘制 intro 终态。
+		lastRenderedIntro = Number.NaN;
 
 		marquee.playExit();
 
-		bubbleTransition?.kill();
-		bubblePop?.kill();
-		bubbleTransition = gsap.to(bubbleLayer, {
-			autoAlpha: 0,
-			duration: 0.5,
-			ease: "power2.in",
-			overwrite: "auto",
-		});
-		bubbleWall.setPaused(true);
+		if (bubbleBodies.length > 0) {
+			bubbleTransition?.kill();
+			bubblePop?.kill();
+			bubbleTransition = gsap.to(bubbleLayer, {
+				autoAlpha: 0,
+				duration: 0.5,
+				ease: "power2.in",
+				overwrite: "auto",
+			});
+			bubbleWall.setPaused(true);
+		}
 
 		standTransition?.kill();
 		standTransition = gsap.to(standImages, {
@@ -609,6 +621,13 @@ function setupScenes(context: SetupContext) {
 		syncAnimationPlayback();
 	};
 
+	let lastPaintedScene: {
+		progress: number;
+		visible: boolean;
+		intro: number;
+		step: number;
+		live: boolean;
+	} | null = null;
 	const renderScenes = (
 		sceneProgress: number,
 		isVisible: boolean,
@@ -616,6 +635,15 @@ function setupScenes(context: SetupContext) {
 	) => {
 		const step = cachedSceneStep;
 		const layerLive = isLayerLive();
+		// 时间线驻留期间每帧同步状态，但静止画面无需重复执行数十次 gsap.set。
+		if (
+			lastPaintedScene?.progress === sceneProgress &&
+			lastPaintedScene.visible === isVisible &&
+			lastPaintedScene.intro === intro &&
+			lastPaintedScene.step === step &&
+			lastPaintedScene.live === layerLive
+		) return;
+		lastPaintedScene = { progress: sceneProgress, visible: isVisible, intro, step, live: layerLive };
 		// 卡片本体随入场进度滑入淡入，不是一到位置就整张亮出来
 		const appear = smoothstep(clamp(intro / CARD_APPEAR_SHARE, 0, 1));
 		let moving = false;
@@ -630,6 +658,13 @@ function setupScenes(context: SetupContext) {
 			// 出屏足够远的幕直接收起，纯为省绘制，屏幕内不参与透明度渐变
 			const inRange = distance <= 1.6;
 			const previousX = previousSceneX[index];
+			if (!isVisible || !inRange) {
+				if (renderedCardVisible[index]) gsap.set(scene.card, { autoAlpha: 0 });
+				renderedCardVisible[index] = false;
+				previousSceneX[index] = x;
+				continue;
+			}
+			renderedCardVisible[index] = true;
 
 			// 首幕图片在收缩门落点原地就位（alpha 1），其余幕随入场错峰滑入淡入
 			const alpha = index === 0 ? 1 : appear;
@@ -639,7 +674,7 @@ function setupScenes(context: SetupContext) {
 				x,
 				y: 0,
 				scale,
-				autoAlpha: isVisible && inRange ? alpha : 0,
+				autoAlpha: alpha,
 				zIndex: Math.round(20 - distance * 3),
 			});
 
@@ -679,12 +714,23 @@ function setupScenes(context: SetupContext) {
 		}
 	};
 
+	let lastStageVisible: boolean | null = null;
+	let lastStagePhase: StagePhase | null = null;
+	let lastRevealOpacity = Number.NaN;
 	function applyPhase() {
-		gsap.set(stage, { autoAlpha: isStageInView() ? 1 : 0 });
+		const visible = isStageInView();
+		const revealOpacity = phase === "reveal" ? 1 - playbackState.revealExit : 0;
+		if (
+			lastStageVisible === visible &&
+			lastStagePhase === phase &&
+			lastRevealOpacity === revealOpacity
+		) return;
+		lastStageVisible = visible;
+		lastStagePhase = phase;
+		lastRevealOpacity = revealOpacity;
+		gsap.set(stage, { autoAlpha: visible ? 1 : 0 });
 		gsap.set(stageBackground, { autoAlpha: phase === "reveal" ? 1 : 0 });
-		gsap.set([stageRevealGlass, stageHeadlineWindow], {
-			autoAlpha: phase === "reveal" ? 1 - playbackState.revealExit : 0,
-		});
+		gsap.set([stageRevealGlass, stageHeadlineWindow], { autoAlpha: revealOpacity });
 		gsap.set(portal, { autoAlpha: phase === "shrink" ? 1 : 0 });
 	}
 
@@ -868,6 +914,7 @@ function setupScenes(context: SetupContext) {
 	// 必须先按新视口量一遍图框尺寸，再同步各幕位置与跑马灯轨道宽度，顺序不能颠倒。
 	const handleRefresh = () => {
 		rootInView = rootTrigger.isActive;
+		lastPaintedScene = null;
 		measureScene();
 		const shrinkTime = shrinkTimeline.time();
 		shrinkTimeline.invalidate().time(shrinkTime);
