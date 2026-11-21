@@ -662,3 +662,103 @@ test("delete only targets allowlisted content; GitHub SHA conflicts do not repor
     globalThis.fetch = original;
   }
 });
+
+
+test("official-domain backend roundtrip: list, create draft, read, update and publish", async () => {
+  const host = "https://0701000.xyz";
+  const { result: loggedIn } = await oauthFlow(undefined, false, host);
+  const session = loggedIn.headers.getSetCookie()
+    .find((value) => value.startsWith("__Host-space-session=")).split(";")[0];
+  const path = "src/content/posts/roundtrip-test.md";
+  const endpoint = "/api/admin/content?kind=posts";
+  const draft = '---\ntitle: "Roundtrip test"\npublished: 2026-11-21\ndraft: true\n---\n\nTesting draft content.';
+  const edited = draft.replace("Testing draft content.", "Updated draft content.");
+  const published = edited.replace("draft: true", "draft: false");
+  const state = { content: null, sha: null, commits: 0, writes: [] };
+  const req = (suffix, method = "GET", body = null, extraHeaders = {}) =>
+    new Request(host + suffix, {
+      method,
+      headers: {
+        Cookie: session,
+        ...(body ? { Origin: host, "X-Requested-With": "Space-Admin", "Content-Type": "application/json" } : {}),
+        ...extraHeaders,
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  const send = (suffix, method = "GET", body = null, extraHeaders = {}) =>
+    api({ request: req(suffix, method, body, extraHeaders), env: githubEnv });
+  const original = globalThis.fetch;
+  globalThis.fetch = async (raw, options = {}) => {
+    const url = String(raw);
+    const base = "https://api.github.com/repos/07xh/space/";
+    assert(url.startsWith(base), "A validated admin session must use only the configured repository");
+    if (url === base + "git/trees/main?recursive=1") {
+      return Response.json({ truncated: false, tree: state.sha
+        ? [{ path, type: "blob", sha: state.sha, size: Buffer.byteLength(state.content) }]
+        : [] });
+    }
+    if (url === base + "contents/" + path + "?ref=main") {
+      return state.sha
+        ? Response.json({ encoding: "base64", sha: state.sha,
+          content: Buffer.from(state.content).toString("base64") })
+        : Response.json({ message: "Not Found" }, { status: 404 });
+    }
+    assert.equal(url, base + "contents/" + path);
+    assert.equal(options.method, "PUT");
+    const payload = JSON.parse(options.body);
+    assert.equal(payload.branch, "main");
+    if (state.sha && payload.sha !== state.sha) {
+      return Response.json({ message: "SHA conflict" }, { status: 409 });
+    }
+    if (!state.sha && payload.sha) {
+      return Response.json({ message: "Unexpected SHA" }, { status: 409 });
+    }
+    const content = Buffer.from(payload.content, "base64").toString("utf8");
+    state.writes.push({ content, sha: payload.sha || null });
+    state.content = content;
+    state.commits++;
+    state.sha = state.commits.toString(16).padStart(40, "0");
+    return Response.json({ content: { sha: state.sha },
+      commit: { sha: String(state.commits + 100).padStart(40, "a") } },
+    { status: state.commits === 1 ? 201 : 200 });
+  };
+  try {
+    const empty = await send(endpoint);
+    assert.equal(empty.status, 200);
+    assert.deepEqual((await empty.json()).items, []);
+    assert.equal((await send(endpoint, "POST", { kind: "posts", path,
+      content: draft.replace("draft: true\n", "") })).status, 400,
+      "New content without draft flag must never be published implicitly");
+    assert.equal(state.writes.length, 0);
+    const created = await send(endpoint, "POST", { kind: "posts", path, content: draft });
+    assert.equal(created.status, 201);
+    let saved = await created.json();
+    assert.equal(saved.sha, state.sha);
+    assert(state.content.includes("draft: true"));
+    const listing = await send(endpoint);
+    assert.deepEqual((await listing.json()).items.map((item) => item.path), [path]);
+    const read = await send(endpoint + "&path=" + path);
+    assert.equal(read.status, 200);
+    assert.equal((await read.json()).content, draft);
+
+    const stale = await send(endpoint, "PUT", { kind: "posts", path,
+      sha: "f".repeat(40), content: edited });
+    assert.equal(stale.status, 409, "Saving an outdated file version must fail");
+    assert.equal(state.writes.length, 1);
+    const update = await send(endpoint, "PUT", { kind: "posts", path, sha: saved.sha, content: edited });
+    assert.equal(update.status, 200);
+    saved = await update.json();
+    assert.equal(state.content, edited);
+    const publish = await send(endpoint, "PUT", { kind: "posts", path, sha: saved.sha,
+      content: published });
+    assert.equal(publish.status, 200);
+    assert.equal(state.content, published);
+    assert.equal(state.writes.length, 3);
+    assert.deepEqual(state.writes.map((write) => /draft: (true|false)/.exec(write.content)[1]),
+      ["true", "true", "false"]);
+    assert.equal((await send(endpoint, "PUT", { kind: "posts", path, sha: state.sha,
+      content: published }, { Origin: "https://attacker.invalid" })).status, 403,
+      "Cross-origin publication must remain forbidden");
+    assert.equal(state.writes.length, 3);
+  } finally { globalThis.fetch = original; }
+});
