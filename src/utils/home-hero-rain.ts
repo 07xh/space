@@ -76,10 +76,12 @@ export function initHomeHeroRain(
 	let splashes: SplashParticle[] = [];
 	let hitEdges: HitEdge[] = [];
 	let animationFrame = 0;
+	let lastFrameTime = 0;
 	let active = false;
 	let width = 0;
 	let height = 0;
 	let dpr = 1;
+	let paintColor = "";
 
 	if (!canvas || !context || config.enabled === false) {
 		return {
@@ -106,6 +108,7 @@ export function initHomeHeroRain(
 		canvas.width = Math.round(width * dpr);
 		canvas.height = Math.round(height * dpr);
 		context.setTransform(dpr, 0, 0, dpr, 0, 0);
+		paintColor = config.color || getComputedStyle(hero).color;
 		const intensity = Math.min(1, Math.max(0, config.intensity ?? 0.6));
 		const areaScale = Math.min(1.4, (width * height) / 1_100_000);
 		const baseCount = mobileQuery.matches ? 34 : 86;
@@ -135,24 +138,30 @@ export function initHomeHeroRain(
 	function stop() {
 		cancelAnimationFrame(animationFrame);
 		animationFrame = 0;
+		lastFrameTime = 0;
 		context?.clearRect(0, 0, width, height);
 	}
 
-	function draw() {
+	function draw(timestamp: number) {
 		if (!context || !active || document.hidden || reducedMotionQuery.matches) {
 			stop();
 			return;
 		}
 
+		// 用时间差更新雨滴，刷新率不同或偶尔漏帧时保持接近一致的下落速度。
+		const frameStep = lastFrameTime
+			? Math.max(0, Math.min(2, (timestamp - lastFrameTime) / (1000 / 60)))
+			: 1;
+		lastFrameTime = timestamp;
 		context.clearRect(0, 0, width, height);
 		context.lineCap = "round";
-		context.strokeStyle = config.color || getComputedStyle(hero).color;
-		context.fillStyle = config.color || getComputedStyle(hero).color;
+		context.strokeStyle = paintColor;
+		context.fillStyle = paintColor;
 
 		for (const drop of drops) {
 			const previousY = drop.y;
-			drop.x -= drop.speed * 0.13;
-			drop.y += drop.speed;
+			drop.x -= drop.speed * 0.13 * frameStep;
+			drop.y += drop.speed * frameStep;
 			const collision = hitEdges.find(
 				(edge) =>
 					previousY <= edge.y &&
@@ -180,10 +189,10 @@ export function initHomeHeroRain(
 
 		for (let index = splashes.length - 1; index >= 0; index -= 1) {
 			const particle = splashes[index];
-			particle.life += 1;
-			particle.vy += 0.18;
-			particle.x += particle.vx;
-			particle.y += particle.vy;
+			particle.life += frameStep;
+			particle.vy += 0.18 * frameStep;
+			particle.x += particle.vx * frameStep;
+			particle.y += particle.vy * frameStep;
 			const remaining = 1 - particle.life / particle.maxLife;
 			if (remaining <= 0) {
 				splashes.splice(index, 1);
@@ -236,6 +245,8 @@ export function initHomeHeroRain(
 
 	return {
 		setActive(nextActive) {
+			// GSAP 在入场期每帧同步状态：不变时避免重复触发全画布清屏。
+			if (active === nextActive) return;
 			active = nextActive;
 			canvas.classList.toggle("is-active", active);
 			if (active) start();
