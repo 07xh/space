@@ -57,18 +57,19 @@ function loginChoicePage() {
 	const html = String.raw`<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>小慌 · 后台登录</title>
-<style nonce="${nonce}">:root{color-scheme:light}*{box-sizing:border-box}body{min-height:100vh;margin:0;background:#f5f8f6;display:grid;place-items:center;color:#25372c;font:15px/1.7 system-ui,-apple-system,"PingFang SC",sans-serif}main{width:min(440px,calc(100% - 32px));padding:32px;border:1px solid #dce9e0;border-radius:18px;background:#fff}h1{font-size:23px;margin:0 0 10px}p{color:#60756b}label{display:flex;gap:10px;align-items:flex-start;margin:20px 0}input{width:18px;height:18px;flex-shrink:0;margin-top:4px;accent-color:#147b4a}button{width:100%;padding:12px;border:0;border-radius:10px;background:#147b4a;color:#fff;font:inherit;font-weight:650;cursor:pointer}small{display:block;margin-top:14px;color:#60756b}</style>
+<style nonce="${nonce}">:root{color-scheme:light}*{box-sizing:border-box}body{min-height:100vh;margin:0;background:#f5f8f6;display:grid;place-items:center;color:#25372c;font:15px/1.7 system-ui,-apple-system,"PingFang SC",sans-serif}main{width:min(440px,calc(100% - 32px));padding:32px;border:1px solid #dce9e0;border-radius:18px;background:#fff}h1{font-size:23px;margin:0 0 10px}p{color:#60756b}label{display:flex;gap:10px;align-items:flex-start;margin:20px 0}input{width:18px;height:18px;flex-shrink:0;margin-top:4px;accent-color:#147b4a}button{width:100%;padding:12px;border:0;border-radius:10px;background:#147b4a;color:#fff;font:inherit;font-weight:650;cursor:pointer}small{display:block;margin-top:14px;color:#60756b}small a{color:#147b4a;text-underline-offset:3px}</style>
 </head><body><main><h1>小慌 · 内容管理</h1><p>继续使用已经设置好的 GitHub 账号验证身份，不需要新建账号或重配 OAuth。</p>
 <form method="GET" action="/api/auth/login"><input type="hidden" name="begin" value="1">
 <label><input type="checkbox" name="remember" value="1"><span>信任此设备，30 天内免重复 GitHub 登录</span></label>
 <button type="submit">使用 GitHub 登录</button></form>
-<small>仅在自己的设备上勾选。首次授权仍需访问 GitHub；后台发布继续由服务器连接 GitHub。</small>
+<small>如果按钮没有跳转，可<a id="direct-login" href="/api/auth/login?begin=1">使用备用链接直接登录</a>。仅在自己的设备上勾选；首次授权仍需访问 GitHub。</small>
+<script nonce="${nonce}">(()=>{const form=document.querySelector("form");const remember=form.querySelector('input[name="remember"]');const direct=document.getElementById("direct-login");const target=()=>"/api/auth/login?begin=1"+(remember.checked?"&remember=1":"");function sync(){direct.href=target()}remember.addEventListener("change",sync);sync();form.addEventListener("submit",(event)=>{event.preventDefault();window.location.assign(target())})})();</script>
 </main></body></html>`;
 	return new Response(html, { status: 200, headers: {
 		"content-type": "text/html; charset=utf-8", "cache-control": "private, no-store",
 		"x-content-type-options": "nosniff", "x-frame-options": "DENY",
 		"referrer-policy": "no-referrer",
-		"content-security-policy": "default-src 'none'; style-src 'nonce-" + nonce + "'; form-action 'self' https://github.com; base-uri 'none'; frame-ancestors 'none'",
+		"content-security-policy": "default-src 'none'; style-src 'nonce-" + nonce + "'; script-src 'nonce-" + nonce + "'; form-action 'self' https://github.com; base-uri 'none'; frame-ancestors 'none'",
 	} });
 }
 
