@@ -1,7 +1,7 @@
 // Minimal private publishing workspace. Reuses the old Firefly admin's light/green
 // visual direction but keeps new Space preview completely separate from that site.
 import { privateJson, requirePreviewAdmin } from "../src/lib/preview-admin-auth.js";
-import { usesGitHubLogin } from "../src/lib/github-admin-auth.js";
+import { usesGitHubLogin, refreshTrustedSessionCookie } from "../src/lib/github-admin-auth.js";
 
 const HTML = String.raw`<!doctype html>
 <html lang="zh-CN">
@@ -566,6 +566,7 @@ export async function onRequestGet({ request, env }) {
   if (!String(env.SPACE_GITHUB_CONTENTS_TOKEN || "").trim()) {
     return privateJson({ error: "预览站后台密钥尚未配置，页面保持禁用。" }, 503);
   }
+  const renewedCookie = usesGitHubLogin(env) ? await refreshTrustedSessionCookie(request, env) : null;
   const nonce = crypto.randomUUID().replace(/-/g, "");
   const html = HTML.replaceAll("__NONCE__", nonce).replace("__LOGOUT_HIDDEN__", usesGitHubLogin(env) ? "" : "hidden");
   return new Response(html, {
@@ -573,6 +574,7 @@ export async function onRequestGet({ request, env }) {
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "private, no-store",
+      ...(renewedCookie ? { "set-cookie": renewedCookie } : {}),
       "x-content-type-options": "nosniff",
       "x-frame-options": "DENY",
       "content-security-policy": "default-src 'none'; style-src 'nonce-" + nonce +

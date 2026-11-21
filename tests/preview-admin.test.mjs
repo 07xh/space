@@ -32,10 +32,10 @@ test("GitHub configuration selects session authentication and never falls back t
   assert.equal((await requirePreviewAdmin(request("/admin"), { ...env, SPACE_GITHUB_CLIENT_ID: "" })).status, 503);
 });
 
-async function oauthFlow(identity = { id: 313783339, login: "07xh" }) {
+async function oauthFlow(identity = { id: 313783339, login: "07xh" }, remember = false) {
   const { onRequestGet: login } = await import("../functions/api/auth/login.js");
   const { onRequestGet: callback } = await import("../functions/api/auth/callback.js");
-  const start = await login({ request: request("/api/auth/login"), env: githubEnv });
+  const start = await login({ request: request("/api/auth/login?begin=1" + (remember ? "&remember=1" : "")), env: githubEnv });
   assert.equal(start.status, 302);
   const target = new URL(start.headers.get("location"));
   assert.equal(target.origin + target.pathname, "https://github.com/login/oauth/authorize");
@@ -82,6 +82,8 @@ test("GitHub OAuth binds state and PKCE then issues a protected admin session", 
   assert.match(session, /Secure; HttpOnly; SameSite=Lax/);
   assert.match(session, /Path=\//);
   assert.doesNotMatch(session, /Domain=|oauth-token/);
+  assert.equal(cookies.some((value) => value.startsWith("__Host-space-trusted=") && !value.includes("Max-Age=0")), false,
+    "An ordinary login must never silently remember the device");
   const cookie = session.split(";")[0];
   const authenticated = request("/admin", null, "GET", null, { Cookie: cookie });
   assert.equal(await requirePreviewAdmin(authenticated, githubEnv), null);
@@ -105,7 +107,7 @@ test("GitHub callback fails closed without leaking upstream tokens or secrets", 
   const original = globalThis.fetch;
   try {
     for (const mode of ["network", "exchange-status", "exchange-redirect", "malformed-token", "identity-status", "identity-redirect"]) {
-      const start = await login({ request: request("/api/auth/login"), env: githubEnv });
+      const start = await login({ request: request("/api/auth/login?begin=1"), env: githubEnv });
       const target = new URL(start.headers.get("location"));
       const cookie = start.headers.get("set-cookie").split(";")[0];
       globalThis.fetch = async (url) => {
@@ -138,6 +140,59 @@ test("GitHub callback fails closed without leaking upstream tokens or secrets", 
       } finally { Date.now = now; }
     }
   } finally { globalThis.fetch = original; }
+});
+
+test("GitHub login offers explicit trusted-device choice without changing OAuth credentials", async () => {
+  const { onRequestGet: login } = await import("../functions/api/auth/login.js");
+  const chooser = await login({ request: request("/api/auth/login"), env: githubEnv });
+  assert.equal(chooser.status, 200);
+  assert.match(chooser.headers.get("content-security-policy"), /form-action 'self'/);
+  const page = await chooser.text();
+  assert.match(page, /信任此设备/);
+  assert.match(page, /name="remember"/);
+  assert.match(page, /使用 GitHub 登录/);
+  assert.equal((await login({ request: request("/api/auth/login?begin=0"), env: githubEnv })).status, 400);
+  assert.equal((await login({ request: request("/api/auth/login?begin=1&remember=untrusted"), env: githubEnv })).status, 400);
+});
+
+test("Trusted device restores session without GitHub for at most 30 days", async () => {
+  const { result } = await oauthFlow(undefined, true);
+  const cookies = result.headers.getSetCookie();
+  const session = cookies.find((value) => value.startsWith("__Host-space-session=")).split(";")[0];
+  const trustedHeader = cookies.find((value) => value.startsWith("__Host-space-trusted="));
+  assert.match(trustedHeader, /Max-Age=2592000; Secure; HttpOnly; SameSite=Lax/);
+  const trusted = trustedHeader.split(";")[0];
+  assert.equal(await requirePreviewAdmin(request("/admin", null, "GET", null, { Cookie: trusted }), githubEnv), null);
+
+  const now = Date.now;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = () => { throw new Error("Trusted device restoration must not call GitHub"); };
+  try {
+    Date.now = () => now() + 28801 * 1000;
+    const requestWithTrust = request("/admin", null, "GET", null, { Cookie: session + "; " + trusted });
+    assert.equal(await requirePreviewAdmin(requestWithTrust, githubEnv), null);
+    const reopened = await editor({ request: requestWithTrust, env: githubEnv });
+    assert.equal(reopened.status, 200);
+    const renewed = reopened.headers.getSetCookie().find((value) => value.startsWith("__Host-space-session="));
+    assert.match(renewed, /Max-Age=28800; Secure; HttpOnly; SameSite=Lax/);
+    const wrong = request("/api/admin/content?kind=posts", null, "GET", null, { Cookie: trusted + "tampered" });
+    assert.equal((await requirePreviewAdmin(wrong, githubEnv)).status, 401);
+    Date.now = () => now() + 2592001 * 1000;
+    assert.equal((await requirePreviewAdmin(requestWithTrust, githubEnv)).status, 401);
+  } finally {
+    Date.now = now;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Logging out clears both regular and trusted sessions", async () => {
+  const { onRequest: logout } = await import("../functions/api/auth/logout.js");
+  const result = await logout({ request: request("/api/auth/logout", null, "POST", null,
+    { Origin: origin, "X-Requested-With": "Space-Admin" }), env: githubEnv });
+  assert.equal(result.status, 200);
+  const cookies = result.headers.getSetCookie();
+  assert(cookies.some((value) => value.startsWith("__Host-space-session=;") && value.includes("Max-Age=0")));
+  assert(cookies.some((value) => value.startsWith("__Host-space-trusted=;") && value.includes("Max-Age=0")));
 });
 
 test("GitHub session is enforced by actual private APIs before repository requests", async () => {
