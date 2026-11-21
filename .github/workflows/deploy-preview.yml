@@ -66,14 +66,20 @@ jobs:
           base="${DEPLOYMENT_URL%/}"
           test -s dist/index.html || { echo "::error::Astro dist/index.html is missing"; exit 1; }
           echo "Worker endpoint: ${base}"
-          echo "Checking homepage and /index.html separately to distinguish route mapping from workers.dev availability"
+          echo "Checking homepage and canonical /index.html after following redirects"
           for route in / /index.html; do
-            status="$(curl --silent --show-error --max-time 30 --output /tmp/space-worker-public-check.txt --write-out '%{http_code}' "${base}${route}" || true)"
-            echo "GET ${route}: HTTP ${status}"
+            status=""
+            for attempt in 1 2 3 4 5; do
+              status="$(curl --location --max-redirs 3 --silent --show-error --max-time 30 --output /tmp/space-worker-public-check.txt --write-out '%{http_code}' "${base}${route}" || true)"
+              if [ "${status}" = 200 ]; then break; fi
+              echo "GET ${route} attempt ${attempt}: HTTP ${status}; retrying for edge propagation"
+              sleep 3
+            done
+            echo "GET ${route} (final response after redirects): HTTP ${status}"
             if [ "${status}" != 200 ]; then
               head -c 800 /tmp/space-worker-public-check.txt || true
               echo
-              echo "::error::Worker public endpoint returned HTTP ${status} for ${route}. Verify workers.dev is enabled and static asset routing is correct before domain cutover."
+              echo "::error::Worker public endpoint did not return HTTP 200 for ${route} after redirects/retries."
               exit 1
             fi
           done
