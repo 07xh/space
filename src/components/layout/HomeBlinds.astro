@@ -42,7 +42,8 @@ const commentBubble = {
 	weight: Math.max(1, config.scenes.commentBubble.weight),
 };
 // 没有配置留言且未启用评论来源时，不生成 12 个空的无限漂移动画。
-const BUBBLE_COUNT = bubbleMessages.length > 0 || commentBubble.enabled ? 12 : 0;
+const BUBBLE_COUNT =
+	bubbleMessages.length > 0 || commentBubble.enabled ? 12 : 0;
 const runtimeConfig = {
 	reveal: {
 		headline: {
