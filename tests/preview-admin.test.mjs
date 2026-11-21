@@ -552,12 +552,19 @@ test("private editor includes explicit draft/publish controls and compilable UI 
 });
 
 
-test("preview deploy remains GitHub Actions Wrangler direct upload, with private-route guard", () => {
+test("Workers deploy is GitHub Actions only, with private-route guard", () => {
   const yaml = readFileSync(new URL("../.github/workflows/deploy-preview.yml", import.meta.url), "utf8");
   assert.match(yaml, /push:\s*\n\s*branches:\s*\[main\]/);
   assert.match(yaml, /SPACE_WALINE_SERVER_URL:\s*\$\{\{\s*vars\.SPACE_WALINE_SERVER_URL\s*\}\}/);
   assert.match(yaml, /cloudflare\/wrangler-action@v4/);
-  assert.match(yaml, /command: pages deploy dist --project-name=07xh-space-preview --branch=main/);
+  assert.match(yaml, /command: deploy --config wrangler\.jsonc/);
+  assert.doesNotMatch(yaml, /command: pages deploy/);
+  const config = JSON.parse(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
+  assert.equal(config.main, "./.worker-dist/index.js");
+  assert.equal(config.assets.directory, "./dist");
+  assert.equal(config.assets.binding, "ASSETS");
+  assert.deepEqual(config.assets.run_worker_first, ["/admin", "/api/auth/*", "/api/admin/*"]);
+  assert.equal(config.pages_build_output_dir, undefined);
   assert.match(yaml, /node --test tests\/preview-admin\.test\.mjs/);
   assert.match(yaml, /pages functions build functions/);
   assert.match(yaml, /Verify deployed private Functions remain protected/);
@@ -592,12 +599,9 @@ test("commit receipt is Access-protected, validates SHA and reads no write secre
 
     const commit = "d".repeat(40);
     const url = "/api/admin/deployment?commit=" + commit;
-    const deployRun = { name: "Deploy Cloudflare Pages preview", head_sha: commit,
+    const deployRun = { name: "Deploy Cloudflare Worker", head_sha: commit,
       head_branch: "main", event: "push", id: 123,
       status: "in_progress", conclusion: null };
-    const verification = { name: "Verify deployed preview article and project pages",
-      head_sha: commit, head_branch: "main", event: "workflow_run",
-      id: 124, status: "in_progress", conclusion: null };
     async function phase() {
       const response = await deployment({ request: request(url, token), env });
       assert.equal(response.status, 200);
@@ -609,15 +613,9 @@ test("commit receipt is Access-protected, validates SHA and reads no write secre
     deployRun.status = "completed";
     deployRun.conclusion = "success";
     const uploaded = await phase();
-    assert.equal(uploaded.phase, "deployed");
+    assert.equal(uploaded.phase, "verified");
     assert.equal(uploaded.deploy.url, "https://github.com/07xh/space/actions/runs/123");
-    runs = [verification, deployRun];
-    assert.equal((await phase()).phase, "verifying");
-    verification.status = "completed";
-    verification.conclusion = "failure";
-    assert.equal((await phase()).phase, "verification_failed");
-    verification.conclusion = "success";
-    assert.equal((await phase()).phase, "verified");
+    assert.equal(uploaded.verify, null);
     deployRun.conclusion = "failure";
     assert.equal((await phase()).phase, "deploy_failed");
   } finally {
