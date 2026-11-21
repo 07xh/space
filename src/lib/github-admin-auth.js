@@ -197,7 +197,8 @@ export async function githubCallback({ request, env }) {
 				"https://github.com/login/oauth/access_token",
 				{
 					method: "POST",
-					redirect: "error",
+					// Workers 不支持 error 模式；manual 配合下方 ok 检查拒绝所有重定向。
+					redirect: "manual",
 					headers: {
 						Accept: "application/json",
 						"Content-Type": "application/x-www-form-urlencoded",
@@ -239,7 +240,7 @@ export async function githubCallback({ request, env }) {
 					Accept: "application/vnd.github+json",
 					"User-Agent": "space-admin-login",
 				},
-				redirect: "error",
+				redirect: "manual",
 				signal: AbortSignal.timeout(8000),
 			});
 			providerStatus = identity.status;
