@@ -14,7 +14,8 @@ import { requestScrollTriggerRefresh } from "@/utils/scroll-trigger-refresh";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const RAIN_ACTIVATE_TIME = 1.14;
+// 错开雨幕首次绘制和三张介绍卡的翻入，防止叠加 Canvas / 视频解码开销。
+const RAIN_ACTIVATE_TIME = 1.42;
 const DIALOGUE_REVEAL_TIME = 1.23;
 const DIALOGUE_REVEAL_DURATION = 0.11;
 const DIALOGUE_REVEAL_END_TIME =
@@ -50,6 +51,11 @@ const PHOTO_FRAME_THICKNESS_REM = 0.5;
 const PHOTO_FRAME_RADIUS_REM = 0.75;
 /** 介绍面板与照片同批落位后淡入 */
 const INTRO_REVEAL_TIME = PHOTO_SETTLE_TIME + PHOTO_SETTLE_DURATION;
+const INTRO_CARD_REVEAL_DURATION = 0.16;
+const INTRO_CARD_STAGGER = 0.05;
+// 主图在三张票签全部落位后才解码，叠图实况再错开一拍。
+const MAIN_VIDEO_START_TIME =
+	INTRO_REVEAL_TIME + INTRO_CARD_REVEAL_DURATION + 2 * INTRO_CARD_STAGGER;
 /** 玩偶角点对齐用的微调：照片逆时针倾斜后真实左下角偏右偏下，玩偶再往左下挪一点 */
 const DIALOGUE_CORNER_SHIFT_X = -40;
 const DIALOGUE_CORNER_SHIFT_Y = 36;
@@ -318,10 +324,10 @@ export function mountHomeHero(): () => void {
 	let liveTimelineTime = 0;
 	const syncLiveMedia = () => {
 		const canPlay = heroInView && !document.hidden && !reducedMotionQuery.matches;
-		// 碎片拼合前不解码主图；叠图真正滑入前也不抢占第二路解码。
+		// 先用 poster 完成拼合和票签落位，再错峰启动两路实况视频。
 		liveMedia.sync(
-			canPlay && liveTimelineTime >= 0.75,
-			canPlay && liveTimelineTime >= INTRO_REVEAL_TIME,
+			canPlay && liveTimelineTime >= MAIN_VIDEO_START_TIME,
+			canPlay && liveTimelineTime >= INTERACTION_HOLD_START,
 		);
 	};
 	const syncRain = () => {
@@ -807,9 +813,9 @@ export function mountHomeHero(): () => void {
 				{
 					autoAlpha: 1,
 					rotate: 0,
-					duration: 0.16,
+					duration: INTRO_CARD_REVEAL_DURATION,
 					ease: "power2.out",
-					stagger: 0.05,
+					stagger: INTRO_CARD_STAGGER,
 				},
 				INTRO_REVEAL_TIME,
 			);
