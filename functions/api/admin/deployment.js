@@ -1,15 +1,14 @@
-// Read-only publication receipt for the new Space preview, not the legacy site.
-// GitHub's public workflow metadata avoids granting the Contents token Actions access.
+// Read-only GitHub Actions publication receipt. The single Worker deployment
+// workflow includes its own post-deploy public/private HTTP smoke checks.
 import { privateJson, requirePreviewAdmin } from "../../../src/lib/preview-admin-auth.js";
 
 const ACTIONS_URL = "https://api.github.com/repos/07xh/space/actions/runs?branch=main&per_page=100";
-const DEPLOY_WORKFLOW = "Deploy Cloudflare Pages preview";
-const VERIFY_WORKFLOW = "Verify deployed preview article and project pages";
+const DEPLOY_WORKFLOW = "Deploy Cloudflare Worker";
 
-function matchingRun(runs, sha, name, event) {
+function matchingRun(runs, sha) {
   const run = runs.find((entry) => entry.head_sha === sha &&
-    entry.head_branch === "main" && entry.name === name &&
-    entry.event === event && Number.isSafeInteger(entry.id) && entry.id > 0);
+    entry.head_branch === "main" && entry.name === DEPLOY_WORKFLOW &&
+    entry.event === "push" && Number.isSafeInteger(entry.id) && entry.id > 0);
   if (!run) return null;
   return {
     status: run.status,
@@ -18,13 +17,10 @@ function matchingRun(runs, sha, name, event) {
   };
 }
 
-function phase(deploy, verify) {
+function phase(deploy) {
   if (!deploy) return "not_found";
-  if (deploy.status === "completed" && deploy.conclusion !== "success") return "deploy_failed";
-  if (deploy.status === "completed" && deploy.conclusion === "success") {
-    if (!verify) return "deployed";
-    if (verify.status !== "completed") return "verifying";
-    return verify.conclusion === "success" ? "verified" : "verification_failed";
+  if (deploy.status === "completed") {
+    return deploy.conclusion === "success" ? "verified" : "deploy_failed";
   }
   return deploy.status === "in_progress" ? "deploying" : "queued";
 }
@@ -53,14 +49,13 @@ export async function onRequestGet({ request, env }) {
       return privateJson({ error: "GitHub Actions 返回了无效数据。" }, 502);
     }
     const commit = sha.toLowerCase();
-    const deploy = matchingRun(data.workflow_runs, commit, DEPLOY_WORKFLOW, "push");
-    const verify = matchingRun(data.workflow_runs, commit, VERIFY_WORKFLOW, "workflow_run");
+    const deploy = matchingRun(data.workflow_runs, commit);
     return privateJson({
       commit,
-      phase: phase(deploy, verify),
+      phase: phase(deploy),
       deploy,
-      verify,
-      note: "状态来自 GitHub Actions；部署成功表示 Wrangler 上传成功，页面复测通过才表示检查通过。",
+      verify: null,
+      note: "单一 GitHub Actions 发布：成功表示 Wrangler Workers 部署和公共首页/私有接口冒烟测试全部通过；不代表本人 OAuth 和真实写入已验收。",
     });
   } catch {
     return privateJson({ error: "暂时无法连接 GitHub Actions，请通过仓库 Actions 页面确认。" }, 503);

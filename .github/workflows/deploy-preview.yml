@@ -1,4 +1,4 @@
-name: Deploy Cloudflare Pages preview
+name: Deploy Cloudflare Worker
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: cloudflare-pages-space-preview
+  group: cloudflare-worker-space-production
   cancel-in-progress: false
 
 jobs:
@@ -32,65 +32,48 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Check Astro
-        run: pnpm check
-      - name: Build static site
-        run: pnpm build
-      - name: Validate private Functions before deployment
-        if: ${{ hashFiles('functions/**/*.js') != '' }}
+      - name: Check Astro and authenticated backend
         run: |
+          pnpm check
           node --test tests/preview-admin.test.mjs
-          npx --yes wrangler@4 pages functions build functions \
-            --outdir /tmp/space-preview-functions-preflight \
-            --compatibility-date 2026-11-20
-      - name: Ensure preview project exists
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Build static site once
+        run: pnpm build
+      - name: Compile existing Pages Functions into the Worker
         run: |
-          project_api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects"
-          status=$(curl --silent --show-error --output /tmp/pages-project.json --write-out '%{http_code}' \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${project_api}/07xh-space-preview")
-          case "$status" in
-            200) echo 'Preview project already exists' ;;
-            404) curl --fail --silent --show-error --output /dev/null \
-              -X POST -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-              -H 'Content-Type: application/json' \
-              --data '{"name":"07xh-space-preview","production_branch":"main"}' "$project_api" ;;
-            *) echo "::error::Cloudflare project lookup returned HTTP $status"; exit 1 ;;
-          esac
-      - name: Deploy preview project
+          npx --yes wrangler@4 pages functions build functions \
+            --outdir .worker-dist \
+            --compatibility-date 2026-11-20
+          test -s .worker-dist/index.js
+      - name: Validate Worker bundle without deploying
+        run: npx --yes wrangler@4 deploy --config wrangler.jsonc --dry-run --outdir /tmp/space-worker-preflight
+      - name: Deploy only to Cloudflare Workers
+        id: deploy
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=07xh-space-preview --branch=main
+          command: deploy --config wrangler.jsonc
       - name: Verify deployed private Functions remain protected
-        if: ${{ hashFiles('functions/**/*.js') != '' }}
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
         shell: bash
         run: |
           set -euo pipefail
-          base='https://07xh-space-preview.pages.dev'
-          for route in /admin '/api/admin/content?kind=posts' '/api/admin/deployment?commit=dddddddddddddddddddddddddddddddddddddddd'; do
-            status="$(curl --silent --show-error --max-time 20 \
-              --output /tmp/space-preview-route-check.txt \
-              --write-out '%{http_code}' "${base}${route}")"
+          if [ -z "${DEPLOYMENT_URL}" ]; then
+            echo "::error::Wrangler did not return the Worker deployment URL"
+            exit 1
+          fi
+          base="${DEPLOYMENT_URL%/}"
+          curl --fail --silent --show-error --max-time 30 --output /dev/null "${base}/"
+          for route in /admin '/api/admin/content?kind=posts' '/api/admin/deployment?commit=dddddddddddddddddddddddddddddddddddddddd' /api/auth/login; do
+            status="$(curl --silent --show-error --max-time 20 --output /tmp/space-worker-private-check.txt --write-out '%{http_code}' "${base}${route}")"
             case "$status" in
-              302|303|307|308|401|403|503)
-                echo "Protected: GET ${route} returned HTTP ${status}" ;;
-              *)
-                echo "::error::Private route ${route} returned unsafe HTTP ${status}"
-                exit 1 ;;
+              302|303|307|308|401|403|503) echo "Protected GET ${route}: HTTP ${status}" ;;
+              *) echo "::error::Unexpected GET ${route}: HTTP ${status}"; exit 1 ;;
             esac
           done
-          status="$(curl --silent --show-error --max-time 20 -X POST \
-            --output /tmp/space-preview-upload-check.txt \
-            --write-out '%{http_code}' "${base}/api/admin/upload")"
+          status="$(curl --silent --show-error --max-time 20 -X POST --output /tmp/space-worker-upload-check.txt --write-out '%{http_code}' "${base}/api/admin/upload")"
           case "$status" in
-            302|303|307|308|401|403|503)
-              echo "Protected: POST /api/admin/upload returned HTTP ${status}" ;;
-            *)
-              echo "::error::Upload API returned unsafe HTTP ${status}"
-              exit 1 ;;
+            302|303|307|308|401|403|503) echo "Protected POST /api/admin/upload: HTTP ${status}" ;;
+            *) echo "::error::Upload API returned unexpected HTTP ${status}"; exit 1 ;;
           esac
-          curl --fail --silent --show-error --max-time 20 --output /dev/null "${base}/"

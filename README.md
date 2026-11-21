@@ -26,13 +26,14 @@ exist for fidelity testing and must be reviewed/replaced before public launch.
 The first step ports one entire coherent theme. Do not mix incompatible
 upstream visual frameworks by copying partial styles on top of each other.
 
-## Important
+## Deployment
 
-- **Production target:** https://0701000.xyz (new `07xh/space` Pages project), once DNS and the Cloudflare Pages custom-domain status are confirmed.
-- **Preview endpoint:** https://07xh-space-preview.pages.dev (kept for deployment smoke tests during migration).
-- Original Firefly is retired from production; keep its repository archived as a rollback/content reference rather than deleting it.
-- GitHub Actions performs the build, Wrangler uploads to Cloudflare Pages; Pages does not rebuild the site.
-- GitHub OAuth uses the existing app and a per-origin signed session. The new callback must be added to that app before switching domains.
+- **Production domain:** `https://0701000.xyz`; repository `07xh/space`.
+- **Target runtime:** Cloudflare Workers + Static Assets, with the existing Pages Functions compiled into one Worker.
+- **One deploy owner:** `.github/workflows/deploy-preview.yml` (now named **Deploy Cloudflare Worker**). GitHub Actions builds with pnpm and runs `wrangler deploy`; Cloudflare Builds/Git integration is **not used**.
+- The separate Cloudflare Pages project remains a rollback snapshot during DNS migration but receives **no further automatic deployments**.
+- The official domain is **not** moved by a code commit. Worker secrets, official-domain binding and GitHub OAuth login must be checked before cutover.
+- Setup and rollback: [Workers migration guide](docs/workers-migration.md).
 
 ## Local start
 
